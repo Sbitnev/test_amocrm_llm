@@ -1,0 +1,611 @@
+openapi: 3.0.3
+info:
+  title: unf 1c api - OpenAPI 3.0
+  description: |-
+    Используется для взаимодействия с 1С. Поиск данных, изменение, создание новых документов
+  contact:
+    email: sev@1spectr.com
+  version: 1.0.11
+servers:
+  - url: http://192.168.1.45/ipt/api/hs/external_api
+tags:
+  - name: service
+    description: Операции для сервиса
+  - name: organization
+    description: Операции для работы с Организациями
+  - name: clients
+    description: Операции для работы с Клиентами(контрагентами)
+  - name: orders
+    description: Операции для работы с заказами(счетами)
+paths:
+  /ping:
+    get:
+      tags:
+        - service
+      summary: Проверка доступности сервиса
+      description: Проверяет работает сервис или нет.
+      operationId: ping
+      responses:
+        '200':
+          description: сервис доступен
+        '500':
+          description: серви не доступен
+  /clients:
+    get:
+      tags:
+        - clients
+      summary: Получить список клиентов или одного клиента. Клиент это НЕ организация
+      description: Возвращает список клиентов
+      operationId: getClients
+      parameters:
+        - name: search
+          in: query
+          description: Поиск по имени клиента, работает по частичному вхождению в наименование
+          required: false
+          minLength: 3
+          maxLength: 100
+          example: Веселые решения ООО
+        - name: id
+          in: query
+          description: Поиск по id клиента
+          required: false
+      responses:
+        '200':
+          description: операция выполнена успешно
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Сlient'
+        '500':
+          description: сервис не смог обработать запрос
+  /organization:
+    get:
+      tags:
+        - organization
+      summary: Получить список организаций от которой мы осуществляем деятельность
+      description: Возвращает список клиентов
+      operationId: getOrganizations
+      responses:
+        '200':
+          description: операция выполнена успешно
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Organization'
+        '500':
+          description: сервис не смог обработать запрос
+  /client_detail/{client_id}:
+    get:
+      tags:
+        - clients
+      summary: Получить детальную информацию по клиенту
+      description: Возвращает реквизиты клиента/контрагента
+      operationId: getСlientDetail
+      parameters:
+        - name: client_id
+          in: path
+          description: идентификатор(id) клиента
+          required: true
+          example: НФ-000286
+      responses:
+        '200':
+          description: операция выполнена успешно
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/СlientDetail'
+        '500':
+          description: сервис не смог обработать запрос
+  /orders:
+    get:
+      tags:
+        - orders
+      summary: Получить список заказов клиента
+      description: Возвращает список заказов клиента по отбору
+      operationId: getOrders
+      parameters:
+        - name: client_id
+          in: query
+          description: Идентификатор(id) клиента(контрагента). Получаем его из метода getClients
+          required: true
+          example: НФ-000286
+        - name: limit
+          in: query
+          description: Количество последних(по дате создания) заказов клиента
+          required: true
+          example: 5
+        - name: organization_id
+          in: query
+          description: Идентификатор(id) организации. Получаем его из метода getOrganizations
+          required: false
+          example: НФ-000001
+      responses:
+        '200':
+          description: операция выполнена успешно
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+        '500':
+          description: сервис не смог обработать запрос
+  /order_detail/{year}/{order_id}:
+    get:
+      tags:
+        - orders
+      summary: Получить детальную информацию по заказу(счету)
+      description: Возвращает детальную информацию по заказу
+      operationId: getOrderDetail
+      parameters:
+        - name: year
+          in: path
+          description: год создания заказа(счета)
+          required: true
+          example: 2025
+        - name: order_id
+          in: path
+          description: идентификатор
+          required: true
+          example: НФ-000286
+      responses:
+        '200':
+          description: операция выполнена успешно
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrderDetail'
+        '500':
+          description: сервис не смог обработать запрос
+  /order_copy/{year}/{order_id}:
+    post:
+      tags:
+        - orders
+      summary: Создать новый заказ(счет) копированием существующего
+      description: Создает новый счет и возвращает его идентификатор
+      operationId: postOrderCopy
+      parameters:
+        - name: year
+          in: path
+          description: год создания заказа(счета)
+          required: true
+          example: 2025
+        - name: order_id
+          in: path
+          description: идентификатор
+          required: true
+          example: НФ-000286
+      requestBody:
+              description: Дополнительные параметры для создания заказа(счета)
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/OrderCopy'
+              required: false
+      responses:
+        '200':
+          description: операция выполнена успешно
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrderDetail'
+        '500':
+          description: сервис не смог обработать запрос
+  /order_edit/{year}/{order_id}:
+    post:
+      tags:
+        - orders
+      summary: Изменить заказ(счет)
+      description: Изменяет данные в заказе(счета)
+      operationId: postOrderEdit
+      parameters:
+        - name: year
+          in: path
+          description: год создания заказа(счета)
+          required: true
+          example: 2025
+        - name: order_id
+          in: path
+          description: идентификатор
+          required: true
+          example: НФ-000286
+      requestBody:
+              description: Дополнительные параметры для создания заказа(счета)
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/OrderEdit'
+              required: true
+      responses:
+        '200':
+          description: операция выполнена успешно
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrderDetail'
+        '500':
+          description: сервис не смог обработать запрос
+  /get_order_invoice/{year}/{order_id}:
+    get:
+      tags:
+        - orders
+      summary: Получает pdf файл счета
+      description: По идентификатору и году получает файл счета в формате pdf
+      operationId: getOrderInvoice
+      parameters:
+        - name: year
+          in: path
+          description: год создания заказа(счета)
+          required: true
+          example: 2025
+        - name: order_id
+          in: path
+          description: идентификатор
+          required: true
+          example: НФ-000286
+        - name: with_faximile
+          in: query
+          description: Добавить в счет подпись и печать(факсимиле)
+          required: false
+          example: true
+      responses:
+        '200':
+          description: операция выполнена успешно
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '500':
+          description: сервис не смог обработать запрос
+  /organization_detail/{organizations_id}:
+    get:
+      tags:
+        - organizations
+      summary: Получить детальную информацию по организации
+      description: Возвращает детальную информацию по всем реквизитам организации
+      operationId: getOrganizationDetail
+      parameters:
+        - name: organizations_id
+          in: path
+          description: идентификатор организации
+          required: true
+          example: НФ-000001
+      responses:
+        '200':
+          description: операция выполнена успешно
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrganizationDetail'
+        '500':
+          description: сервис не смог обработать запрос
+  /get_organizations_req/{organization_id}:
+    get:
+      tags:
+        - organizations
+      summary: Получает pdf-файл с полными реквизитами организации
+      description: По идентификатору организации получает файл с реквизитами в формате pdf
+      operationId: getOrganizationReq
+      parameters:
+        - name: organization_id
+          in: path
+          description: Идентификтаор организации
+          required: true
+          example: НФ-000286
+      responses:
+        '200':
+          description: операция выполнена успешно
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '500':
+          description: сервис не смог обработать запрос
+components:
+  schemas:
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+          example: НФ-000001
+        name:
+          type: string
+          example: Сергеев Евгений Владимирович ИП
+        ИНН:
+          type: string
+          example: 383400659473
+        КПП:
+          type: string
+          example: 780501001
+    Сlient:
+      type: object
+      properties:
+        id:
+          type: string
+          example: НФ-000286
+        name:
+          type: string
+          example: Веселые решения ООО
+    СlientDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          example: НФ-000286
+        Наименование:
+          type: string
+          example: Веселые решения ООО
+        ВидКонтрагента:
+          type: string
+          example: Юридическое лицо
+        ИНН:
+          type: string
+          example: 7701399675
+        КПП:
+          type: string
+          example: 772501001
+        СтранаРегистрации:
+          type: string
+          example: РОССИЯ
+        Комментарий:
+          type: string
+          example: Произвольный комментарий пользователя
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          example: НФ-000286
+        Дата:
+          type: string
+          example: 30.09.2024 19:23:01
+        Организация:
+          type: string
+          example: Сергеев Евгений Владимирович ИП
+        ОрганизацияКод:
+          type: string
+          description: Идентификатор организации
+          example: НФ-000001
+        СуммаДокумента:
+          type: number
+          example: 156300.00
+        Оплачено:
+          type: number
+          description: Сколько оплатили по документы
+          example: 156300.00
+        Комментарий:
+          type: string
+          example: Произвольный комментарий пользователя
+        Автор:
+          type: string
+          example: Автор/создатель документа
+    OrderDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          example: НФ-000286
+        Дата:
+          type: string
+          description: Дата создания документа
+          example: 21.02.2025 17:08:04
+        Контрагент:
+          type: string
+          description: Наименование клиента(контрагента)
+          example: Веселые решения ООО
+        Организация:
+          type: string
+          example: Сергеев Евгений Владимирович ИП
+          description: Наименование Организации
+        ОрганизацияКод:
+          type: string
+          description: Идентификатор организации
+          example: НФ-000001
+        СуммаДокумента:
+          type: number
+          example: 39412.80
+          description: Сумма документа
+        Оплачено:
+          type: number
+          description: Сколько оплатили по документы
+          example: 156300.00
+        Комментарий:
+          type: string
+          example: Произвольный комментарий пользователя
+        Автор:
+          type: string
+          example: Автор/создатель документа
+        Товары:
+          type: array
+          items:
+            $ref: '#/components/schemas/Item'
+    Item:
+      type: object
+      properties:
+        НомерСтроки:
+          type: number
+          example: 1
+          description: Номер строки счета(заказа)
+        Номенклатура:
+          type: string
+          example: 1С:Предприятие 8.3.15.1806
+          description: Человеко-читаемое название товара
+        НоменклатураКод:
+          type: string
+          example: НФ-00000124
+          description: Идентификатор товара
+        Содержание:
+          type: string
+          example: Работы по договору
+          description: Содержание работ, заполняется в случае продажи услуги
+        Цена:
+          type: number
+          example: 46368.00
+          description: Цена за единицу товара/услуги
+        Количество:
+          type: number
+          example: 1.000
+          description: Количество единиц товара
+        Сумма:
+          type: number
+          example: 46368.00
+          description: Сумма за строку товаров, Цена*Количество
+        Скидка:
+          type: number
+          example: 6955.20
+          description: Сумма скидки
+    OrderCopy:
+      description: Опциональные параметры копирования заказа
+      type: object
+      properties:
+        НоменклатураКод:
+          type: string
+          example: НФ-00000124
+          description: Идентификатор товара
+          required: false
+        Цена:
+          type: number
+          example: 46368.00
+          description: Цена за единицу товара/услуги
+          required: false
+        Количество:
+          type: number
+          example: 1.000
+          description: Количество единиц товара
+          required: false
+        Сумма:
+          type: number
+          example: 46368.00
+          description: Сумма за строку товаров, Цена*Количество
+          required: false
+        Содержание:
+          type: string
+          example: Работы по договору
+          description: Содержание работ, заполняется в случае продажи услуги
+          required: false
+        Скидка:
+          type: number
+          example: 6955.20
+          description: Сумма скидки
+          required: false
+    OrganizationDetail:
+      description: Реквизиты организации
+      type: object
+      properties:
+        Наименование:
+          type: string
+          example: ИП Сергеев
+          description: Полное наименование организации
+        ИНН:
+          type: string
+          example: 7705331663
+          description: ИНН организации
+        КПП:
+          type: string
+          example: 7705010
+        РасчетныйСчет:
+          type: string
+          example: 40702810000000000000
+        Банк:
+          type: string
+          example: АО "ТИНЬКОФФ БАНК"
+        БИК:
+          type: string
+          example: 044525974
+        КоррСчет:
+          type: string
+          example: 30101810400000000974
+        ЮридическийАдрес:
+          type: string
+          example: г Москва, ул Тверская, д 16
+        Руководитель:
+          type: string
+          example: Директор Сергеев Сергей Сергеевич
+    OrderEdit:
+      type: object
+      properties:
+        КонтрагентКод:
+          type: string
+          description: Идентификатор контрагента
+          required: false
+          example: НФ-000001
+        ОрганизацияКод:
+          type: string
+          description: Идентификатор организации. ВАЖНО! При изменении организации меняется номер(идентификатор) заказа
+          required: false
+          example: НФ-000001
+        Комментарий:
+          type: string
+          required: false
+          example: Произвольный комментарий пользователя
+        Товары:
+          type: array
+          items:
+            $ref: '#/components/schemas/RowEdit'
+    RowEdit:
+      description: Редактируемая строка
+      type: object
+      properties:
+        Команда:
+          type: string
+          example: add
+          description: Команда редактирования строки, add - добавление новой строки, edit - редактирование существующей строки, delete - удаление существующей строки
+          required: true
+          enum:
+            - add
+            - edit
+            - delete
+        НомерСтроки:
+          type: number
+          example: 1
+          description: Номер редактируемой или удаляемой строки
+          required: false
+        НоменклатураКод:
+          type: string
+          example: НФ-00000124
+          description: Идентификатор товара
+          required: false
+        Цена:
+          type: number
+          example: 46368.00
+          description: Цена за единицу товара/услуги
+          required: false
+        Количество:
+          type: number
+          example: 1.000
+          description: Количество единиц товара
+          required: false
+        Сумма:
+          type: number
+          example: 46368.00
+          description: Сумма за строку товаров, Цена*Количество
+          required: false
+        Содержание:
+          type: string
+          example: Работы по договору
+          description: Содержание работ, заполняется в случае продажи услуги
+          required: false
+        Скидка:
+          type: number
+          example: 6955.20
+          description: Сумма скидки
+          required: false
+
+

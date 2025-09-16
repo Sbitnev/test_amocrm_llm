@@ -1,0 +1,436 @@
+import os
+import sys
+
+# Получаем абсолютный путь к текущему файлу
+current_file_path = os.path.abspath(__file__)
+
+# Получаем путь к родительской директории
+parent_dir = os.path.dirname(os.path.dirname(current_file_path))
+
+# Добавляем родительскую директорию в sys.path
+sys.path.append(parent_dir)
+
+import logging
+import os
+import getpass
+import tempfile
+import traceback
+from datetime import datetime
+from pathlib import Path
+
+import httpx
+import requests
+import json
+from langchain_core.messages import (
+    HumanMessage,
+    AIMessage,
+    ToolMessage,
+    SystemMessage,
+    RemoveMessage,
+)
+from langchain_openai import ChatOpenAI
+from langchain_core.tools import tool
+from telebot import util
+from tenacity import retry, stop_after_attempt, wait_fixed
+
+import yaml
+
+from langchain_core.callbacks import BaseCallbackHandler
+
+from langgraph.prebuilt import create_react_agent
+from langchain_community.utilities import SQLDatabase
+from langchain_community.agent_toolkits import create_sql_agent
+from langchain_community.agent_toolkits.sql.toolkit import SQLDatabaseToolkit
+from langgraph.types import Command, interrupt
+from langgraph.checkpoint.memory import MemorySaver
+from langchain import hub
+import requests
+import re
+from urllib.parse import unquote
+from tg_bot.settings import ROOT_DIR
+from tg_bot.logging_conf import logger
+from tg_bot.prompt_helper import (
+    get_personalization,
+    set_personalization,
+    get_mtime_personalization,
+)
+
+# from agent_dev.tools_desc import Osv_FinalSchema
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+files_dir = "files"
+os.makedirs(files_dir, exist_ok=True)
+log_dir = "logs"
+os.makedirs(log_dir, exist_ok=True)
+logger = logging.getLogger("langsmith")
+logger.setLevel(logging.DEBUG)
+logger.addHandler(logging.FileHandler(os.path.join(log_dir, "langsmith.log")))
+logger.addHandler(logging.StreamHandler())
+
+BASEDIR = Path(__file__).parent.parent
+CA_CERT_PATH = BASEDIR / "ca.crt"
+CA_CERT_PATH = str(CA_CERT_PATH.resolve())
+
+
+class GuardHandler(BaseCallbackHandler):
+    def on_tool_start(self, serialized, *_, **__):
+        if serialized.get("name") == "requests_get" and "get_order_invoice" in __.get(
+            "inputs"
+        ):
+            raise RuntimeError(
+                "get_order_invoice заблокирован. Используй инструмент get_file_from_url."
+            )
+
+
+class Bot_LLM:
+    def __init__(
+        self, bot, model_id="gpt-4.1-mini", max_history_message_tokens=1000, logger=None
+    ):
+        self.bot = bot
+        self.model_id = model_id
+        self.max_history_message_tokens = max_history_message_tokens
+        self.logger = logger
+        self.model = ChatOpenAI(
+            api_key=os.environ.get("API_KEY_MINI_LLM"),
+            model=model_id,
+            base_url=os.environ.get("BASE_URL_MINI_LLM"),
+            http_client=httpx.Client(verify=CA_CERT_PATH),
+        )
+        self.storage_prompt_path = os.path.join(ROOT_DIR, "prompts")
+        # self.system_prompt_path = os.path.join(ROOT_DIR, "prompts/system_prompt.txt")
+        # self.openapi_path = os.path.join(ROOT_DIR, "openapi.yaml")
+        self._last_prompt_mtime = None
+        self._last_open_api_mtime = None
+        self._cached_system_prompt = None
+        self.personal_data = {}
+        self.system_prompt_id = os.environ.get("SYSTEM_PROMPT")
+        self.openapi_spec = os.environ.get("OPENAPI_SPEC")
+
+    def run(self):
+        self._init_smb_assist()
+
+    def load_system_prompt(self, user_personal_id):
+        try:
+            mtime_system_prompt = get_mtime_personalization(
+                os.path.join(self.storage_prompt_path, self.system_prompt_id)
+            )
+            # mtime_openapi = get_mtime_personalization(os.path.join(self.storage_prompt_path, self.openapi_spec))
+            mtime_personalization_current = get_mtime_personalization(
+                os.path.join(ROOT_DIR, f"personalization/{user_personal_id}.txt")
+            )
+            mtime_personalization_old = self.get_personal_user_date(
+                user_personal_id, "mtime_personalization"
+            )
+            if (
+                self._last_prompt_mtime != mtime_system_prompt
+                # or self._last_open_api_mtime != mtime_openapi
+                or mtime_personalization_old != mtime_personalization_current
+            ):
+                system_prompt = self.get_prompt_from_storage(self.system_prompt_id)
+                # openapi = self.get_prompt_from_storage(self.openapi_spec, True)
+                personalization_text = get_personalization(user_personal_id)
+                # del openapi["paths"]['/get_order_invoice/{year}/{order_id}']  # убираем метод
+                # json_spec = JsonSpec(dict_=openapi, max_value_length=40000)
+                self._cached_system_prompt = system_prompt
+                self._last_prompt_mtime = mtime_system_prompt
+                # self._last_open_api_mtime = mtime_openapi
+                # self.set_personal_user_date(user_personal_id, 'mtime_personalization', mtime_personalization_current)
+                if self.logger:
+                    self.logger.info(
+                        f"[{self.openapi_spec}] Обновлён system_message из файла."
+                    )
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(
+                    f"[{self.openapi_spec}] Не удалось загрузить system_message: {e}"
+                )
+            self._cached_system_prompt = (
+                "Ты ассистент. Не удалось загрузить system prompt."
+            )
+        return self._cached_system_prompt
+
+    def get_personal_user_date(self, user_id, key):
+        user_date = self.personal_data.get(user_id, {})
+        date_on_key = user_date.get(key, None)
+        return date_on_key
+
+    def set_personal_user_date(self, user_id, key, data):
+        user_date = self.personal_data.get(user_id, {})
+        date_on_key = user_date[key] = data
+        self.personal_data[user_id] = user_date
+
+    def get_prompt_from_storage(self, prompt_id, is_yaml=False):
+        prompt_path = os.path.join(self.storage_prompt_path, prompt_id)
+        with open(prompt_path, "r", encoding="utf-8") as file:
+            if is_yaml:
+                result = yaml.load(file, Loader=yaml.FullLoader)
+            else:
+                result = file.read()
+        return result
+
+    def _init_smb_assist(self):
+        # @tool
+        # def chart_of_account(number: str):
+        #     """Используй для получения деталей счета учета. """
+        #     url = f'http://192.168.1.45/demo_buh/api/hs/external_api/chart_of_account?number={number}'
+        #     return requests.get(url).json()
+        #
+        # @tool("osv_final", args_schema=Osv_FinalSchema)
+        # def osv_final(limit: int, number: str, group_by: str, filter: list):
+        #     param = {
+        #         'limit': limit,
+        #         'number': number,
+        #         'group_by': group_by,
+        #         'filter': [x.model_dump() for x in filter]
+        #     }
+        #     url = f'http://192.168.1.45/demo_buh/api/hs/external_api/osv_final'
+        #     response = requests.post(url, json=param)
+        #     data = json.loads(response.content.decode('utf-8-sig'))
+        #     return data
+
+        def system_prompt(state, config):
+            prompt_text = self.load_system_prompt(config["configurable"]["user_id"])
+            return [SystemMessage(content=prompt_text)] + state["messages"]
+            # return SystemMessage(content=prompt_text)
+
+        # toolkit = RequestsToolkit(
+        #     requests_wrapper=TextRequestsWrapper(headers={}),
+        #     allow_dangerous_requests=True,
+        # )
+        # tools_for_agent = toolkit.get_tools()[:2] + [get_file_from_url]
+        # tools_for_agent = [get_file_from_url] + [chart_of_account] + [osv_final]
+        # system_message = """
+        # Ты помогаешь работать с системой 1С взаимодействие с которой построено через апи.
+        # Описание апи здесь:
+        # {api_spec}
+        # Дополнительные нюансы
+        # ОЧЕНЬ ВАЖНО: Если надо скачать файл, то используй инструмент get_file_from_url, запрещено скачивать файл напрямую. ссылку на скачивание в сообщении возвращать не надо.
+        # Не допускай дублирования запросов на создание или копирование документов, сначала дождись ответа и только потом принимай решение об отправке повторного запроса.
+        # Если в спецификации нет информации по запросу, то отвечай что апи не поддерживает данный метод
+        # """.format(api_spec=json_spec)
+        
+        db = SQLDatabase.from_uri(f"sqlite:///{(BASEDIR / 'bot_database.sqlite').resolve()}")
+        toolkit = SQLDatabaseToolkit(db=db, llm=self.model)
+        self.agent_executor = create_react_agent(
+            self.model,
+            toolkit.get_tools(),
+            # state_modifier=system_modifier,
+            # state_modifier=system_message,
+            prompt=system_prompt,
+            checkpointer=MemorySaver(),
+        )
+        self.agent_executor = self.agent_executor.with_config(
+            callbacks=[GuardHandler()]
+        )
+
+    def set_personalization(self, thread_id, user_tg_id):
+        config = {"configurable": {"thread_id": thread_id}}
+        current_state = self.agent_executor.get_state(config)
+        if (
+            not current_state.values.get("messages")
+            or len(current_state.values["messages"]) == 0
+        ):
+            return "История пуста, пока нечего персонализировать"
+        messages = current_state.values["messages"]
+        text_current_personalization = get_personalization(user_tg_id)
+        if text_current_personalization is None:
+            text_current_personalization = "Текущей персонализации пока нет"
+        # Собираем текст всех сообщений (при условии что сообщение имеет атрибут content)
+        # conversation_text = "\n".join(
+        #     [msg.content for msg in messages if hasattr(msg, "content") and msg.content]
+        # )
+        summary_prompt = self.get_prompt_from_storage("personalization_create.txt")
+        summary_prompt = summary_prompt.format(
+            text_current_personalization=text_current_personalization,
+            # conversation_text=conversation_text
+        )
+        try:
+            summary = self.model.invoke(
+                messages + [HumanMessage(content=summary_prompt)]
+            ).content
+        except Exception as e:
+            if self.logger:
+                self.logger.error(
+                    f"[summarize_and_update] Ошибка при генерации резюме: {e}"
+                )
+            return "Не удалось сгенерировать резюме."
+        if summary:
+            set_personalization(summary, user_tg_id)
+            delete_messages = [RemoveMessage(id=m.id) for m in messages[:-1]]
+            self.agent_executor.update_state(
+                config=config, values={"messages": delete_messages}
+            )
+        return summary
+
+    def steam(self, message_tg, user_tg_id, thread_id=None, is_debug=False):
+        config = {"configurable": {"thread_id": thread_id, "user_id": user_tg_id}}
+        message = message_tg.text
+        print(f"{datetime.now()} query: {message}")
+        current_state = self.agent_executor.get_state(config)
+        if (
+            not current_state.values.get("messages")
+            or len(current_state.values["messages"]) == 0
+        ):
+            input_messages = {
+                "messages": [HumanMessage(message)],
+            }
+        else:
+            last_message = current_state.values["messages"][-1]
+            if (
+                isinstance(last_message, AIMessage)
+                and getattr(last_message, "tool_calls", None)
+                and last_message.tool_calls[0]["name"] == "ask_human"
+            ):
+                input_messages = Command(resume=message)
+            else:
+                input_messages = {
+                    "messages": [HumanMessage(message)],
+                }
+        if is_debug:
+            result = self.process_call_in_debug_mode(message_tg, input_messages, config)
+        else:
+            result = self.process_call_in_standart_mode(input_messages, config)
+            # last_message = event["messages"][-1]
+            # last_message.pretty_print()
+            # if isinstance(last_message, (HumanMessage, ToolMessage)):
+            #     continue
+            # if isinstance(last_message, AIMessage) and last_message.tool_calls:
+            #     list_queryes = self.get_query_for_user(last_message)
+            #     result.extend(list_queryes)
+            #     continue
+            # if not last_message.content:
+            #     continue
+            # result.append(last_message.pretty_repr())
+
+        return result
+
+    def invoke(self, message_tg, user_tg_id, thread_id=None, is_debug=False):
+        message = message_tg.text
+        input_messages = {
+            "messages": [HumanMessage(message)],
+        }
+        response = self.agent_executor.invoke({"input": message})
+        result = []
+        result.append({"type": "text", "content": response["output"]})
+        return result
+
+    def process_call_in_standart_mode(self, input_messages, config):
+        events = self.agent_executor.stream(
+            input_messages, stream_mode="updates", config=config
+        )
+        result = []
+        last_index = None
+        for event in events:
+            if event.get("tools"):
+                for message in event["tools"]["messages"]:
+                    message.pretty_print()
+                    if message.name == "get_file_from_url":
+                        result.append({"type": "file", "content": message.content})
+                    continue
+            if event.get("agent"):
+                for message in event["agent"]["messages"]:
+                    message.pretty_print()
+                    # if isinstance(last_message, (HumanMessage, ToolMessage)):
+                    #     continue
+                    if not message.content:
+                        continue
+                    result.append({"type": "text", "content": message.pretty_repr()})
+            if event.get("__interrupt__"):
+                for interrupt in event["__interrupt__"]:
+                    result.append({"type": "text", "content": interrupt.value})
+        return result
+
+    def process_call_in_debug_mode(self, message_tg, input_messages, config):
+        events = self.agent_executor.stream(
+            input_messages, stream_mode="values", config=config
+        )
+        result = []
+        last_index = None
+        for event in events:
+            if last_index is None:
+                last_index = len(event["messages"]) - 1
+            # else:
+            #     last_index += 1
+            for i in range(last_index, len(event["messages"])):
+                last_message = event["messages"][i]
+                last_message.pretty_print()
+                self.send_message(
+                    message_tg.chat.id,
+                    last_message.pretty_repr(),
+                )
+                result.append({"type": "text", "content": last_message.pretty_repr()})
+                if (
+                    isinstance(last_message, ToolMessage)
+                    and last_message.name == "get_file_from_url"
+                    and last_message.content
+                ):
+                    self.send_attache(
+                        message_tg.chat.id,
+                        last_message.content,
+                    )
+                    result.append({"type": "file", "content": last_message.content})
+                last_index += 1
+        return result
+
+    def get_query_for_user(self, aimessage):
+        tool_calls = aimessage.tool_calls
+        list_queryes = []
+        for tool_call in tool_calls:
+            if tool_call["name"] == "ask_human":
+                list_queryes.append(tool_call["args"]["query"])
+        return list_queryes
+
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(3))
+    def send_message(self, chat_id, text, id_topic=None, reply_markup=None):
+        if not text:
+            return
+        try:
+            parts = util.smart_split(text, chars_per_string=4096)
+            for part in parts:
+                self.bot.send_message(
+                    chat_id=chat_id,
+                    text=part,
+                    message_thread_id=id_topic,
+                    reply_markup=reply_markup,
+                    parse_mode="HTML",
+                )
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(f"[send_message] Ошибка при отправке текста: {e}")
+                self.logger.debug(traceback.format_exc())
+
+            # Сохраняем текст во временный файл
+            with tempfile.NamedTemporaryFile(
+                mode="w+", delete=False, suffix=".txt", encoding="utf-8"
+            ) as tmp:
+                tmp.write(text)
+                tmp_path = tmp.name
+
+            # Пытаемся отправить как файл
+            try:
+                with open(tmp_path, "rb") as file_doc:
+                    self.bot.send_document(
+                        chat_id=chat_id,
+                        document=file_doc,
+                        caption="Сообщение не удалось отправить как текст, поэтому прикреплено файлом.",
+                        message_thread_id=id_topic,
+                    )
+            except Exception as e2:
+                if self.logger:
+                    self.logger.error(f"[send_message] Ошибка при отправке файла: {e2}")
+                    self.logger.debug(traceback.format_exc())
+
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(3))
+    def send_attache(self, chat_id, file, id_topic=None):
+        if not file:
+            return
+        with open(file, "rb") as fileraw:
+            if file.split(".")[-1] in ("png", "jpg", "jpeg"):
+                self.bot.send_photo(chat_id, fileraw)
+            else:
+                self.bot.send_document(
+                    chat_id=chat_id, document=fileraw, message_thread_id=id_topic
+                )

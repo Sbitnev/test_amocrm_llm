@@ -1,0 +1,393 @@
+pi: 3.0.3
+info:
+  title: buh 1c api - OpenAPI 3.0
+  description: |-
+    Используется для помощи при работе с 1С Бухгалтерией 3. Получение аналитических данный, а также чтение, изменение и создание документов.
+  contact:
+    email: sev@1spectr.com
+  version: 0.0.1
+servers:
+  - url: http://192.168.1.45/demo_buh/api/hs/external_api
+tags:
+  - name: osv
+    description: Операции для работы с оборотно-сальдовой ведомостью
+paths:
+  /osv_final:
+    post:
+      tags:
+        - osv
+      summary: Получить остатки по счетам учета
+      description: Получfет итоговые остатки по всем счетам учета без учета периода, те остатки на текущую дату
+        Обязательно заполнение одного из параметров отбора, не возвращаются товары помеченные на удаление или товары с пустым наименованем
+      operationId: getOsv_final
+      requestBody:
+        description: параметры для фильтрации и детализации
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OsvFinalRequest'
+      responses:
+        '200':
+          description: операция выполнена успешно
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OsvFinal'
+        '500':
+          description: сервис не смог обработать запрос
+  /osv_detail:
+    post:
+      tags:
+        - osv
+      summary: Получить детализацию за период по оборотно-сальдовой ведомости
+      description: Получить детализация по ОСВ с группировкой по разным субконто и возможностью фильтрации
+      operationId: getOsv_detail
+      requestBody:
+        description: параметры для группировки, фильтрации и детализации
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OsvDetailRequest'
+      responses:
+        '200':
+          description: операция выполнена успешно
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OsvDetailResponse'
+        '500':
+          description: сервис не смог обработать запрос
+  /chart_of_account:
+    get:
+      tags:
+        - osv
+      summary: Получить описание счета учета из плана счетов
+      description: Получает описание с детализацией до того какие субконто настроены для конкретного счета учета 
+        и какие настройки заданы для различных субконто
+      operationId: getСhart_of_account
+      parameters:
+        - name: name
+          in: query
+          description: Поиск по наименованию части наименования счета учета, работает по частичному вхождению подстроки
+          required: false
+          minLength: 3
+          maxLength: 100
+          example: Касса
+        - name: number
+          in: query
+          description: Поиск по префиксу счета учета, работает по частичному вхождению подстроки в левую часть
+          required: false
+          minLength: 2
+          maxLength: 10
+          example: 10.01
+      responses:
+        '200':
+          description: операция выполнена успешно
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Chart_of_Account'
+        '500':
+          description: сервис не смог обработать запрос
+components:
+  schemas:
+    Items:
+      type: object
+      properties:
+        Код:
+          type: string
+          example: НФ-000286
+        Наименование:
+          type: string
+          example: Конфета вкусная в обортке
+        Артикул:
+          type: string
+          example: qq11
+        Комментарий:
+          type: string
+          example: 130
+        ПометкаУдаления:
+          type: boolean
+          example: false
+    Chart_of_Account:
+      type: object
+      properties:
+        СчетУчета:
+          type: string
+          description: Номер счета учета
+          example: 51
+        Наименование:
+          type: string
+          description: Человеческое наименование счета учета
+          example: Расчетные счета
+        Вид:
+          type: string
+          description: Вид счета учета
+          example: Активный
+        Забалансовый:
+          type: boolean
+          description: Признак забалансового счета учета
+          example: false
+        Валютный:
+          type: boolean
+          description: Признак валютного счета учета
+          example: false
+        Количественный:
+          type: boolean
+          description: Признак количественного счета учета
+          example: false
+        УчетПоПодразделениям:
+          type: string
+          description: Признак учета по подразделениям
+          example: false
+        НалоговыйУчет:
+          type: string
+          description: Признак учета по налогам
+          example: false
+        ВидыСубконто:
+          type: array
+          items:
+            $ref: '#/components/schemas/Subconto'
+    Subconto:
+      type: object
+      properties:
+        ВидСубконто:
+          type: string
+          description: Название справочнка который используется в качетве субконто
+          example: Банковские счета
+        ТолькоОбороты:
+          type: boolean
+          description: Человеческое наименование счета учета
+          example: Расчетные счета
+        Суммовой:
+          type: boolean
+          description: Признак суммового учета
+          example: false
+        Валютный:
+          type: boolean
+          description: Признак валютного учета
+          example: false
+        Количественный:
+          type: boolean
+          description: Признак количественного счета учета
+          example: false
+        НомерСубконто:
+          type: string
+          description: Важные данные, которые используются для получения детализации методом osv_detail. Значение 
+            этого параметра передается в поле group_by для получения группировки по нужному субконто
+          example: Субконто1
+        ДоступныеПоляПоиска:
+          type: array
+          description: Поля которые можно использовать для фильтрации данных справочников и документов входящих в субконто
+          items:
+            $ref: '#/components/schemas/SubcontoFilters'
+    SubcontoFilters:
+      type: object
+      properties:
+        ИмяПоля:
+          type: string
+          description: Название поля фильтрации
+          example: НомерСчета
+        ТипПоля:
+          type: string
+          description: Тип данных которые столбца. Для полей типа Строка доступен поиск по частичному вхождению(знаки % или *). 
+            Для полей типа Число доступен поиск не только на равенство, но и на больше/меньше.
+          example: Строка
+          enum:
+            - Строка
+            - Число
+        Описание:
+          type: string
+          description: Описание которое объясняет значение поля фильтрации
+          example: Номер расчетного счета
+        Пример:
+          type: string
+          description: Пример содержимого поля
+          example: "40702810399994349242"
+    OsvFinal:
+      type: object
+      properties:
+        Наименование:
+          type: string
+          example: Прочие доходы
+          description: Человеческое наименование счета учета
+        СчетУчета:
+          type: string
+          example: 91.01
+          description: Номер счета учета
+        Остаток:
+          type: number
+          example: 5328483.05
+          description: Суммовой остаток
+        КоличествоОстаток:
+          type: number
+          example: 999
+          description: Количественный остаток
+    OsvFinalRequest:
+      type: object
+      properties:
+        limit:
+          required: false
+          type: number
+          example: 10
+          maximum: 50
+          description: Ограничение количества записей которые можно получить при выполнении запроса к данным
+        group_by:
+          required: false
+          type: string
+          enum:
+            - Субконто1
+            - Субконто2
+            - Субконто3
+            - Организация
+            - Валюта
+            - Подразделение
+          example: Субконто1
+          description: Уровень группировки к ведомости
+        number:
+          required: false
+          type: string
+          example: 51
+          description: Номер счета учета
+        name:
+          required: false
+          type: string
+          example: Расчетные счета
+          description: Человепко-читаемое название счета учета
+        filter:
+          required: false
+          type: array
+          description: Массив условий по которому необходимо выполнить фильтрацию данных
+          items:
+            $ref: '#/components/schemas/Filters'
+    OsvDetailRequest:
+      type: object
+      properties:
+        data_start:
+          required: true
+          type: string
+          format: date-time
+          example: 2023-01-01T00:00:00
+          description: Дата начала периода для отбора
+        data_finish:
+          required: true
+          type: string
+          format: date-time
+          example: 2023-01-31T23:5
+          description: Дата окончания периода для отбора
+        limit:
+          required: false
+          type: number
+          example: 10
+          maximum: 50
+          description: Ограничение количества записей которые можно получить при выполнении запроса к данным
+        is_registrator:
+          required: false
+          type: boolean
+          example: true
+          description: Детализировать данные до документа регистратора проводки
+        group_by:
+          required: false
+          type: string
+          enum:
+            - Субконто1
+            - Субконто2
+            - Субконто3
+            - Организация
+            - Валюта
+            - Подразделение
+          example: Субконто1
+          description: Уровень группировки к ведомости
+        number:
+          required: true
+          type: string
+          example: 51
+          description: Номер счета учета
+        filter:
+          type: array
+          description: Массив условий по которому необходимо выполнить фильтрацию данных
+          items:
+            $ref: '#/components/schemas/Filters'
+    Filters:
+      type: object
+      properties:
+        subconto:
+          required: true
+          type: string
+          enum:
+            - Субконто1
+            - Субконто2
+            - Субконто3
+            - Организация
+            - Валюта
+            - Подразделение
+          example: Субконто1
+          description: Название субконто по которому необходимо осуществить фильтрацию. Можно получить из метода getСhart_of_account(НомерСубконто)
+        field:
+          required: true
+          type: string
+          example: НомерСчета
+          description: Название поля внутри субконто по которому необходимо осуществить фильтрацию, берем из метода getСhart_of_account(ДоступныеПоляПоиска.ИмяПоля)
+        value:
+          required: true
+          description: Значение по которому надо отфильтровать поле(field) из субконто(subconto). Если будет передана строка, то поиск будет по like, если передано число, то поиск будет по строгому равенству
+          example: "%252"
+    OsvDetailResponse:
+      type: object
+      properties:
+        Наименование:
+          type: string
+          example: Прочие доходы
+          description: Человеческое наименование счета учета
+        СчетУчета:
+          type: string
+          example: 91.01
+          description: Номер счета учета
+        Регистратор:
+          type: string
+          description: Представление регистратора
+          example: Поступление на расчетный счет 0000-000079 от 01.02.2015 17:59:59
+        Субконто1:
+          type: string
+          description: Представление субконто, поле можт назхываться по разному в зависимости от того что передано в поле group_by
+        СуммаНачальныйОстаток:
+          type: number
+          example: 5328483.05
+          description: Остаток на счете учета на начало периода в рублевом эквиваленте
+        СуммаКонечныйОстаток:
+          type: number
+          example: 5328483.05
+          description: Остаток на счете учета на конец периода в рублевом эквиваленте
+        СуммаОборот:
+          type: number
+          example: 5328483.05
+          description: Суммарный оборот за период в разрезе счета учета и субконто в рублевом эквиваленте
+        КоличествоНачальныйОстаток:
+          type: number
+          example: 5328483.05
+          description: Остаток на счете учета на начало периода в количественном эквиваленте
+        КоличествоКонечныйОстаток:
+          type: number
+          example: 5328483.05
+          description: Остаток на счете учета на конец периода в количественном эквиваленте
+        КоличествоОборот:
+          type: number
+          example: 5328483.05
+          description: Суммарный оборот за период в разрезе счета учета и субконто в количественном эквиваленте
+
+
+
+
+
+
+
+
+
