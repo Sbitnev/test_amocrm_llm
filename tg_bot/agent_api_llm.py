@@ -56,6 +56,7 @@ from tg_bot.prompt_helper import (
 )
 
 # from agent_dev.tools_desc import Osv_FinalSchema
+from common.database import engine
 
 from dotenv import load_dotenv
 
@@ -212,7 +213,8 @@ class Bot_LLM:
         # Если в спецификации нет информации по запросу, то отвечай что апи не поддерживает данный метод
         # """.format(api_spec=json_spec)
         
-        db = SQLDatabase.from_uri(f"sqlite:///{(BASEDIR / 'bot_database.sqlite').resolve()}")
+        # db = SQLDatabase.from_uri(f"sqlite:///{(BASEDIR / 'bot_database.sqlite').resolve()}")
+        db = SQLDatabase(engine=engine)
         toolkit = SQLDatabaseToolkit(db=db, llm=self.model)
         self.agent_executor = create_react_agent(
             self.model,

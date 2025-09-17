@@ -22,7 +22,7 @@ class Lead(Base):
 
     id = Column(Integer, primary_key=True)
     date_write = Column(DateTime, default=datetime.now)
-    name = Column(String)
+    name = Column(String(255))
     price = Column(Float)
     labor_cost = Column(Float)
     created_at = Column(DateTime)
@@ -65,9 +65,9 @@ class Contact(Base):
     __tablename__ = "contacts"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String)
-    first_name = Column(String)
-    last_name = Column(String)
+    name = Column(String(255))
+    first_name = Column(String(255))
+    last_name = Column(String(255))
     responsible_user_id = Column(Integer)
     group_id = Column(Integer)
     created_at = Column(DateTime)
@@ -106,7 +106,7 @@ class Company(Base):
     __tablename__ = "companies"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String)
+    name = Column(String(255))
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
     custom_fields_values = Column(JSON)
@@ -146,7 +146,7 @@ class Pipeline(Base):
     __tablename__ = "pipelines"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String)
+    name = Column(String(255))
     is_main = Column(Boolean)
     is_archive = Column(Boolean)
     account_id = Column(Integer)
@@ -182,7 +182,7 @@ class Status(Base):
         ),
     )
     id = Column(Integer, primary_key=True)
-    name = Column(String)
+    name = Column(String(255))
     pipeline_id = Column(Integer, primary_key=True)
     type = Column(Integer)
     account_id = Column(Integer)
@@ -212,9 +212,9 @@ class DataSyncState(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     last_updated = Column(DateTime, default=datetime.now, nullable=False)
-    data_type = Column(String, nullable=False, default="")
+    data_type = Column(String(255), nullable=False, default="")
     last_updated_timestamp = Column(Integer, nullable=False)
-    update_log = Column(String, nullable=True)
+    update_log = Column(String(255), nullable=True)
     execution_duration_seconds = Column(Float, nullable=True)
 
     def __repr__(self):
