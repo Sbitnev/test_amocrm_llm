@@ -5,12 +5,12 @@ from tg_bot.logging_conf import logger, logging
 
 load_dotenv()
 
-from common.init_db import init_db
+from common.init_db import init_db, drop_db
 from tg_bot.route import bot
 from sync_db.helper_shediler import get_sheduler
 from sync_db.sync_logic import sync_all
 
-init_db()
+# init_db()
 
 
 @retry(
@@ -33,3 +33,4 @@ if __name__ == '__main__':
     start_polling()
     # sync_all()
     # bot.polling(skip_pending=True, non_stop=True)
+    pass
