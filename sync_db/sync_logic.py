@@ -17,7 +17,7 @@ import time
 from sync_db.amo_connector import get_objects
 from sync_db.db_helper import get_date_last_sync, set_date_last_sync
 from common.database import get_db
-from common.models import Lead, Contact, Company, Pipeline, Status
+from common.models import Lead, Contact, Company, Pipeline, Status, User
 
 def sync_all():
 
@@ -25,7 +25,37 @@ def sync_all():
     sync_objects(Contact)
     sync_leads(Lead)
     sync_objects(Company)
+    sync_users()
+    
+def sync_users(if_force_rewrite = False):
+    start_time = time.time()
+    db = next(get_db())
+    class_model = User
+    entries: list[dict] = get_objects(User.LABEL)
+    count_new = 0
+    count_updated = 0
+    for entry in entries:
+        entry_in_base = db.query(User).filter(User.id == entry['id']).first()
+        if not entry_in_base:
+            # Добавляем нового пользователя
+            entry_in_base = User()
+            entry_in_base.fill(entry)
+            count_new += 1
+        elif entry_in_base.need_update(entry, if_force_rewrite):
+            entry_in_base.fill(entry)
+            count_updated += 1
+        else:
+            continue
+        db.add(entry_in_base)
+    if count_new or count_updated:
+        db.commit()
+    stat = {}
+    stat['new_' + class_model.LABEL] = count_new
+    stat['updated_' + class_model.LABEL] = count_updated
+    duration = time.time() - start_time
+    print(f'Sync for {class_model.LABEL} completed in {duration} seconds, stat {stat}')
 
+        
 def sync_objects_Pipeline(class_model, if_force_rewrite = False):
     start_time = time.time()
     db = next(get_db())

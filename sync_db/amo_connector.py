@@ -40,10 +40,15 @@ def get_objects(LABEL, last_run_timestamp: int = 0, limit: int = 250, page: int 
             method_name = 'get_unsorted_leads'
             method = getattr(client, method_name)
             data = method(limit=limit, page=page)
+        elif LABEL == 'users':
+            method_name = 'get_users'
+            method = getattr(client, method_name)
+            data = method(limit=limit, page=page)
         else:
             method_name = 'get_' + LABEL
             method = getattr(client, method_name)
             data = method(limit=limit, page=page, filters=filters)
+            
         if data:
             entries = data['_embedded'][LABEL]
         else:
