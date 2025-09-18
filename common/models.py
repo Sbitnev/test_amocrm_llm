@@ -61,6 +61,27 @@ class Lead(Base):
         )
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255))
+    email = Column(String(255))
+
+    LABEL = "users"
+
+    def __repr__(self):
+        return f"<Contact(id={self.id}, name={self.name})>"
+
+    def fill(self, data):
+        self.id = data["id"]
+        self.name = data["name"]
+        self.email = data["email"]
+
+    def need_update(self, data, if_force_rewrite=False):
+        return if_force_rewrite
+
+
 class Contact(Base):
     __tablename__ = "contacts"
 
