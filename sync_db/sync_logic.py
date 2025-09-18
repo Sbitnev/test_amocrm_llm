@@ -81,7 +81,7 @@ def sync_objects_Pipeline(class_model, if_force_rewrite = False):
         # entries_status = get_objects(LABEL=class_model.LABEL, params = {'pipeline_id': entry['id']})
         entries_status = entry.get("_embedded", {}).get("statuses", [])
         for entry_status in entries_status:
-            entry_status_in_base = db.query(Status).filter(Status.id == entry_status['id'] and Status.pipeline_id == entry['id']).first()
+            entry_status_in_base = db.query(Status).filter(Status.id == entry_status['id'], Status.pipeline_id == entry_status['pipeline_id']).first()
             if not entry_status_in_base:
                 # Добавляем новый статус
                 entry_status_in_base = Status()

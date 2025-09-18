@@ -216,7 +216,8 @@ class Status(Base):
     def fill(self, data):
         self.id = data["id"]
         self.name = data["name"]
-        self.pipeline_id = data.get("pipeline_id", 0)
+        # self.pipeline_id = data.get("pipeline_id", 0)
+        self.pipeline_id = data["pipeline_id"]
         self.type = data.get("type", 0)
         self.account_id = data["account_id"]
         self.sort = data["sort"]
