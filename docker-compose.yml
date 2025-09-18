@@ -1,9 +1,25 @@
 version: "3.9"
 services:
-  bot_app:
-    build: .
-    image: bot_app
-    container_name: bot_app
+  tg_bot_app:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    image: tg_bot_app
+    container_name: tg_bot_app
+    env_file:
+      - ./.env
+    volumes:
+      - .:/app
+      # - ./logs:/app/logs
+      # - ./files:/app/files
+      # - ./app_bot/instance:/app/app_bot/instance
+    restart: unless-stopped
+  sync_db_app:
+    build:
+      context: .
+      dockerfile: Dockerfile.sync
+    image: sync_db_app
+    container_name: sync_db_app
     env_file:
       - ./.env
     volumes:
