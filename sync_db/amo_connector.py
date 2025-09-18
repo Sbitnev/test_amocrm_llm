@@ -1,8 +1,10 @@
 import os
+import logging
 
 import dotenv
 from amocrm_api import AmoOAuthClient
 
+logger = logging.getLogger(__name__)
 
 dotenv.load_dotenv()
 
@@ -25,6 +27,7 @@ def get_objects(LABEL, last_run_timestamp: int = 0, limit: int = 250, page: int 
     # valid_entities = ['leads', 'contacts', 'companies']
     # if entity not in valid_entities:
     #     raise ValueError(f"Неверный идентификатор сущности: {entity}. Доступные сущности: {valid_entities}")
+    logger.info(f"Получение {LABEL}")
     filters = {'updated_at__from': last_run_timestamp}
     result = []
     while True:

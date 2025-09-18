@@ -10,7 +10,7 @@ parent_dir = os.path.dirname(os.path.dirname(current_file_path))
 # Добавляем родительскую директорию в sys.path
 sys.path.append(parent_dir)
 
-
+import logging
 from datetime import datetime
 import time
 
@@ -19,12 +19,18 @@ from sync_db.db_helper import get_date_last_sync, set_date_last_sync
 from common.database import get_db
 from common.models import Lead, Contact, Company, Pipeline, Status, User
 
-def sync_all():
+logger = logging.getLogger(__name__)
 
+def sync_all():
+    logger.info("Синхронизация воронок и статусов")
     sync_objects_Pipeline(Pipeline)
+    logger.info("Синхронизация контактов")
     sync_objects(Contact)
+    logger.info("Синхронизация сделок")
     sync_leads(Lead)
+    logger.info("Синхронизация компаний")
     sync_objects(Company)
+    logger.info("Синхронизация полноватей")
     sync_users()
     
 def sync_users(if_force_rewrite = False):
@@ -53,7 +59,7 @@ def sync_users(if_force_rewrite = False):
     stat['new_' + class_model.LABEL] = count_new
     stat['updated_' + class_model.LABEL] = count_updated
     duration = time.time() - start_time
-    print(f'Sync for {class_model.LABEL} completed in {duration} seconds, stat {stat}')
+    logger.info(f'Sync for {class_model.LABEL} completed in {duration} seconds, stat {stat}')
 
         
 def sync_objects_Pipeline(class_model, if_force_rewrite = False):
@@ -103,7 +109,7 @@ def sync_objects_Pipeline(class_model, if_force_rewrite = False):
     stat['updated_' + class_model.LABEL] = count_updated
     duration = time.time() - start_time
     set_date_last_sync(class_model.LABEL, last_run_timestamp, duration, stat, db)
-    print(f'Sync for {class_model.LABEL} completed in {duration} seconds, stat {stat}')
+    logger.info(f'Sync for {class_model.LABEL} completed in {duration} seconds, stat {stat}')
 
 def sync_objects(class_model, if_force_rewrite = False):
     start_time = time.time()
@@ -133,7 +139,7 @@ def sync_objects(class_model, if_force_rewrite = False):
     stat['updated_' + class_model.LABEL] = count_updated
     duration = time.time() - start_time
     set_date_last_sync(class_model.LABEL, last_run_timestamp, duration, stat, db)
-    print(f'Sync for {class_model.LABEL} completed in {duration} seconds, stat {stat}')
+    logger.info(f'Sync for {class_model.LABEL} completed in {duration} seconds, stat {stat}')
 
 def sync_leads(class_model, if_force_rewrite = False):
     start_time = time.time()
@@ -167,6 +173,6 @@ def sync_leads(class_model, if_force_rewrite = False):
     stat['updated_' + class_model.LABEL] = count_updated
     duration = time.time() - start_time
     set_date_last_sync(class_model.LABEL, last_run_timestamp, duration, stat, db)
-    print(f'Sync {class_model.LABEL} completed in {duration} seconds, stat {stat}')
+    logger.info(f'Sync {class_model.LABEL} completed in {duration} seconds, stat {stat}')
 
 
