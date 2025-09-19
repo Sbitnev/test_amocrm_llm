@@ -47,6 +47,10 @@ def get_objects(LABEL, last_run_timestamp: int = 0, limit: int = 250, page: int 
             method_name = 'get_users'
             method = getattr(client, method_name)
             data = method(limit=limit, page=page)
+        elif LABEL == 'events':
+            method_name = 'get_events'
+            method = getattr(client, method_name)
+            data = method(limit=limit, page=page, filter_by_type="lead_status_changed", **params)
         else:
             method_name = 'get_' + LABEL
             method = getattr(client, method_name)
@@ -62,4 +66,5 @@ def get_objects(LABEL, last_run_timestamp: int = 0, limit: int = 250, page: int 
             break
         # Переход к следующей странице
         page += 1
+    logger.info(f"Загружено {len(result)} {LABEL}")
     return result

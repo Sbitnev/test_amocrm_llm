@@ -17,11 +17,13 @@ import time
 from sync_db.amo_connector import get_objects
 from sync_db.db_helper import get_date_last_sync, set_date_last_sync
 from common.database import get_db
-from common.models import Lead, Contact, Company, Pipeline, Status, User
+from common.models import Lead, Contact, Company, Pipeline, Status, User, LeadStatusChange
 
 logger = logging.getLogger(__name__)
 
 def sync_all():
+    logger.info("Синхронизация пользователей")
+    sync_users()
     logger.info("Синхронизация воронок и статусов")
     sync_objects_Pipeline(Pipeline)
     logger.info("Синхронизация контактов")
@@ -30,9 +32,38 @@ def sync_all():
     sync_leads(Lead)
     logger.info("Синхронизация компаний")
     sync_objects(Company)
-    logger.info("Синхронизация полноватей")
-    sync_users()
+    logger.info("Синхронизация изменений статусов")
+    sync_lead_status_changes(Company)
     
+def sync_lead_status_changes(if_force_rewrite = False):
+    class_model = LeadStatusChange
+    start_time = time.time()
+    db = next(get_db())
+    last_sync = get_date_last_sync(class_model.LABEL, db)
+    entries: list[dict] = get_objects(class_model.LABEL, params={"filter_by_created_from": last_sync})
+    count_new = 0
+    count_updated = 0
+    for entry in entries:
+        entry_in_base = db.query(class_model).filter(class_model.id == entry['id']).first()
+        if not entry_in_base:
+            entry_in_base = class_model()
+            entry_in_base.fill(entry)
+            count_new += 1
+        elif entry_in_base.need_update(entry, if_force_rewrite):
+            entry_in_base.fill(entry)
+            count_updated += 1
+        else:
+            continue
+        db.add(entry_in_base)
+    if count_new or count_updated:
+        db.commit()
+    stat = {}
+    stat['new_' + class_model.LABEL] = count_new
+    stat['updated_' + class_model.LABEL] = count_updated
+    duration = time.time() - start_time
+    set_date_last_sync(class_model.LABEL, start_time, duration, stat, db)
+    logger.info(f'Sync for {class_model.LABEL} completed in {duration} seconds, stat {stat}')
+
 def sync_users(if_force_rewrite = False):
     start_time = time.time()
     db = next(get_db())

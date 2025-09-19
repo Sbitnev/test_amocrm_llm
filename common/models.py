@@ -228,6 +228,39 @@ class Status(Base):
     def __repr__(self):
         return f"<Status(id={self.id}, name={self.name})>"
 
+class LeadStatusChange(Base):
+    __tablename__ = "lead_status_changes"
+
+    id = Column(String(255), primary_key=True)
+    lead_id = Column(Integer)
+    created_at = Column(DateTime)
+    created_by = Column(Integer)
+    account_id = Column(Integer)
+    old_status_id = Column(Integer)
+    old_pipeline_id = Column(Integer)
+    new_status_id = Column(Integer)
+    new_pipeline_id = Column(Integer)
+
+
+    LABEL = "events"
+
+    def __repr__(self):
+        return f"<Contact(id={self.id}, name={self.name})>"
+
+    def fill(self, data):
+        self.id = data["id"]
+        self.lead_id = data["entity_id"]
+        self.created_at = datetime.fromtimestamp(data["created_at"])
+        self.created_by = data["created_by"]
+        self.account_id = data["account_id"]
+        self.old_status_id = data["value_before"][0]["lead_status"]["id"]
+        self.old_pipeline_id = data["value_before"][0]["lead_status"]["pipeline_id"]
+        self.new_status_id = data["value_after"][0]["lead_status"]["id"]
+        self.new_pipeline_id = data["value_after"][0]["lead_status"]["pipeline_id"]
+
+
+    def need_update(self, data, if_force_rewrite=False):
+        return False
 
 class DataSyncState(Base):
     __tablename__ = "data_sync_state"
