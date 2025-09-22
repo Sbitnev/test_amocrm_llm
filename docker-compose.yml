@@ -28,3 +28,18 @@ services:
       # - ./files:/app/files
       # - ./app_bot/instance:/app/app_bot/instance
     restart: unless-stopped
+
+  flask_app:
+    build:
+      context: .
+      dockerfile: Dockerfile.flask
+    image: flask_app
+    container_name: flask_app
+    env_file:
+      - ./.env
+    volumes:
+      - .:/app
+      # - ./logs:/app/logs
+      # - ./files:/app/files
+      # - ./app_bot/instance:/app/app_bot/instance
+    restart: unless-stopped
