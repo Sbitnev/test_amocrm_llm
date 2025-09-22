@@ -29,14 +29,14 @@ services:
       # - ./app_bot/instance:/app/app_bot/instance
     restart: unless-stopped
 
-  flask_app:
+  flask_prompt_app:
     build:
       context: .
       dockerfile: Dockerfile.flask
-    image: flask_app
-    container_name: flask_app
+    image: flask_prompt_app
+    container_name: flask_prompt_app
     ports:
-      - 5000:5000
+      - 5050:5000
     env_file:
       - ./.env
     volumes:
