@@ -35,6 +35,8 @@ services:
       dockerfile: Dockerfile.flask
     image: flask_app
     container_name: flask_app
+    ports:
+      - 5000:5000
     env_file:
       - ./.env
     volumes:
