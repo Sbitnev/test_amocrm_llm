@@ -57,6 +57,7 @@ from tg_bot.prompt_helper import (
 
 # from agent_dev.tools_desc import Osv_FinalSchema
 from common.database import engine
+from common.prompt_manager import prompt_manager
 
 from dotenv import load_dotenv
 
@@ -193,7 +194,8 @@ class Bot_LLM:
         #     return data
 
         def system_prompt(state, config):
-            prompt_text = self.load_system_prompt(config["configurable"]["user_id"])
+            # prompt_text = self.load_system_prompt(config["configurable"]["user_id"])
+            prompt_text = prompt_manager.get_system_prompt()
             return [SystemMessage(content=prompt_text)] + state["messages"]
             # return SystemMessage(content=prompt_text)
 
@@ -212,7 +214,7 @@ class Bot_LLM:
         # Не допускай дублирования запросов на создание или копирование документов, сначала дождись ответа и только потом принимай решение об отправке повторного запроса.
         # Если в спецификации нет информации по запросу, то отвечай что апи не поддерживает данный метод
         # """.format(api_spec=json_spec)
-        
+
         # db = SQLDatabase.from_uri(f"sqlite:///{(BASEDIR / 'bot_database.sqlite').resolve()}")
         db = SQLDatabase(engine=engine)
         toolkit = SQLDatabaseToolkit(db=db, llm=self.model)
