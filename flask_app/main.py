@@ -22,7 +22,7 @@ app = Flask(__name__)
 @app.get("/prompt")
 def read_prompt():
     try:
-        content = prompt_manager.get_system_prompt()
+        content = prompt_manager.get_core_prompt()
         return jsonify({"prompt": content})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -36,7 +36,7 @@ def write_prompt():
         if not new_prompt:
             return jsonify({"error": "No text provided"}), 400
 
-        prompt_manager.edit_system_prompt(new_prompt)
+        prompt_manager.edit_core_prompt(new_prompt)
 
         return jsonify({"message": "File updated successfully", "prompt": new_prompt})
     except Exception as e:
