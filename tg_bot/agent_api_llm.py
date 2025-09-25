@@ -102,8 +102,6 @@ class Bot_LLM:
             http_client=httpx.Client(verify=CA_CERT_PATH),
         )
         self.storage_prompt_path = os.path.join(ROOT_DIR, "prompts")
-        # self.system_prompt_path = os.path.join(ROOT_DIR, "prompts/system_prompt.txt")
-        # self.openapi_path = os.path.join(ROOT_DIR, "openapi.yaml")
         self._last_prompt_mtime = None
         self._last_open_api_mtime = None
         self._cached_system_prompt = None
@@ -113,46 +111,6 @@ class Bot_LLM:
 
     def run(self):
         self._init_smb_assist()
-
-    def load_system_prompt(self, user_personal_id):
-        try:
-            mtime_system_prompt = get_mtime_personalization(
-                os.path.join(self.storage_prompt_path, self.system_prompt_id)
-            )
-            # mtime_openapi = get_mtime_personalization(os.path.join(self.storage_prompt_path, self.openapi_spec))
-            mtime_personalization_current = get_mtime_personalization(
-                os.path.join(ROOT_DIR, f"personalization/{user_personal_id}.txt")
-            )
-            mtime_personalization_old = self.get_personal_user_date(
-                user_personal_id, "mtime_personalization"
-            )
-            if (
-                self._last_prompt_mtime != mtime_system_prompt
-                # or self._last_open_api_mtime != mtime_openapi
-                or mtime_personalization_old != mtime_personalization_current
-            ):
-                system_prompt = self.get_prompt_from_storage(self.system_prompt_id)
-                # openapi = self.get_prompt_from_storage(self.openapi_spec, True)
-                personalization_text = get_personalization(user_personal_id)
-                # del openapi["paths"]['/get_order_invoice/{year}/{order_id}']  # убираем метод
-                # json_spec = JsonSpec(dict_=openapi, max_value_length=40000)
-                self._cached_system_prompt = system_prompt
-                self._last_prompt_mtime = mtime_system_prompt
-                # self._last_open_api_mtime = mtime_openapi
-                # self.set_personal_user_date(user_personal_id, 'mtime_personalization', mtime_personalization_current)
-                if self.logger:
-                    self.logger.info(
-                        f"[{self.openapi_spec}] Обновлён system_message из файла."
-                    )
-        except Exception as e:
-            if self.logger:
-                self.logger.warning(
-                    f"[{self.openapi_spec}] Не удалось загрузить system_message: {e}"
-                )
-            self._cached_system_prompt = (
-                "Ты ассистент. Не удалось загрузить system prompt."
-            )
-        return self._cached_system_prompt
 
     def get_personal_user_date(self, user_id, key):
         user_date = self.personal_data.get(user_id, {})
@@ -174,55 +132,17 @@ class Bot_LLM:
         return result
 
     def _init_smb_assist(self):
-        # @tool
-        # def chart_of_account(number: str):
-        #     """Используй для получения деталей счета учета. """
-        #     url = f'http://192.168.1.45/demo_buh/api/hs/external_api/chart_of_account?number={number}'
-        #     return requests.get(url).json()
-        #
-        # @tool("osv_final", args_schema=Osv_FinalSchema)
-        # def osv_final(limit: int, number: str, group_by: str, filter: list):
-        #     param = {
-        #         'limit': limit,
-        #         'number': number,
-        #         'group_by': group_by,
-        #         'filter': [x.model_dump() for x in filter]
-        #     }
-        #     url = f'http://192.168.1.45/demo_buh/api/hs/external_api/osv_final'
-        #     response = requests.post(url, json=param)
-        #     data = json.loads(response.content.decode('utf-8-sig'))
-        #     return data
 
         def system_prompt(state, config):
-            # prompt_text = self.load_system_prompt(config["configurable"]["user_id"])
             prompt_text = prompt_manager.get_system_prompt()
             return [SystemMessage(content=prompt_text)] + state["messages"]
             # return SystemMessage(content=prompt_text)
 
-        # toolkit = RequestsToolkit(
-        #     requests_wrapper=TextRequestsWrapper(headers={}),
-        #     allow_dangerous_requests=True,
-        # )
-        # tools_for_agent = toolkit.get_tools()[:2] + [get_file_from_url]
-        # tools_for_agent = [get_file_from_url] + [chart_of_account] + [osv_final]
-        # system_message = """
-        # Ты помогаешь работать с системой 1С взаимодействие с которой построено через апи.
-        # Описание апи здесь:
-        # {api_spec}
-        # Дополнительные нюансы
-        # ОЧЕНЬ ВАЖНО: Если надо скачать файл, то используй инструмент get_file_from_url, запрещено скачивать файл напрямую. ссылку на скачивание в сообщении возвращать не надо.
-        # Не допускай дублирования запросов на создание или копирование документов, сначала дождись ответа и только потом принимай решение об отправке повторного запроса.
-        # Если в спецификации нет информации по запросу, то отвечай что апи не поддерживает данный метод
-        # """.format(api_spec=json_spec)
-
-        # db = SQLDatabase.from_uri(f"sqlite:///{(BASEDIR / 'bot_database.sqlite').resolve()}")
         db = SQLDatabase(engine=engine)
         toolkit = SQLDatabaseToolkit(db=db, llm=self.model)
         self.agent_executor = create_react_agent(
             self.model,
             toolkit.get_tools(),
-            # state_modifier=system_modifier,
-            # state_modifier=system_message,
             prompt=system_prompt,
             checkpointer=MemorySaver(),
         )
@@ -270,7 +190,8 @@ class Bot_LLM:
         return summary
 
     def steam(self, message_tg, user_tg_id, thread_id=None, is_debug=False):
-        config = {"configurable": {"thread_id": thread_id, "user_id": user_tg_id}}
+        # config = {"configurable": {"thread_id": thread_id, "user_id": user_tg_id}}
+        config = {"configurable": {"thread_id": user_tg_id}}
         message = message_tg.text
         print(f"{datetime.now()} query: {message}")
         current_state = self.agent_executor.get_state(config)
@@ -297,17 +218,6 @@ class Bot_LLM:
             result = self.process_call_in_debug_mode(message_tg, input_messages, config)
         else:
             result = self.process_call_in_standart_mode(input_messages, config)
-            # last_message = event["messages"][-1]
-            # last_message.pretty_print()
-            # if isinstance(last_message, (HumanMessage, ToolMessage)):
-            #     continue
-            # if isinstance(last_message, AIMessage) and last_message.tool_calls:
-            #     list_queryes = self.get_query_for_user(last_message)
-            #     result.extend(list_queryes)
-            #     continue
-            # if not last_message.content:
-            #     continue
-            # result.append(last_message.pretty_repr())
 
         return result
 
