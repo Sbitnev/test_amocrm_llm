@@ -49,11 +49,6 @@ import re
 from urllib.parse import unquote
 from tg_bot.settings import ROOT_DIR
 from tg_bot.logging_conf import logger
-from tg_bot.prompt_helper import (
-    get_personalization,
-    set_personalization,
-    get_mtime_personalization,
-)
 
 # from agent_dev.tools_desc import Osv_FinalSchema
 from common.database import engine
@@ -75,6 +70,34 @@ logger.addHandler(logging.StreamHandler())
 BASEDIR = Path(__file__).parent.parent
 CA_CERT_PATH = BASEDIR / "ca.crt"
 CA_CERT_PATH = str(CA_CERT_PATH.resolve())
+
+
+def clear_memory(
+    memory: MemorySaver, thread_id: str, new_data: dict | None = None
+) -> None:
+    """Clear the memory for a given thread_id."""
+    try:
+        # If it's an InMemorySaver (which MemorySaver is an alias for),
+        # we can directly clear the storage and writes
+        if hasattr(memory, "storage") and hasattr(memory, "writes"):
+            # Clear all checkpoints for this thread_id (all namespaces)
+            ms = memory.storage.pop(thread_id, None)
+            print(ms)
+
+            # Clear all writes for this thread_id (for all namespaces)
+            keys_to_remove = [
+                key for key in memory.writes.keys() if key[0] == thread_id
+            ]
+            for key in keys_to_remove:
+                print(key)
+                print(memory.writes.pop(key, None))
+
+            print(f"Memory cleared for thread_id: {thread_id}")
+
+            return
+
+    except Exception as e:
+        print(f"Error clearing InMemorySaver storage for thread_id {thread_id}: {e}")
 
 
 class GuardHandler(BaseCallbackHandler):
@@ -101,35 +124,9 @@ class Bot_LLM:
             base_url=os.environ.get("BASE_URL_MINI_LLM"),
             http_client=httpx.Client(verify=CA_CERT_PATH),
         )
-        self.storage_prompt_path = os.path.join(ROOT_DIR, "prompts")
-        self._last_prompt_mtime = None
-        self._last_open_api_mtime = None
-        self._cached_system_prompt = None
-        self.personal_data = {}
-        self.system_prompt_id = os.environ.get("SYSTEM_PROMPT")
-        self.openapi_spec = os.environ.get("OPENAPI_SPEC")
 
     def run(self):
         self._init_smb_assist()
-
-    def get_personal_user_date(self, user_id, key):
-        user_date = self.personal_data.get(user_id, {})
-        date_on_key = user_date.get(key, None)
-        return date_on_key
-
-    def set_personal_user_date(self, user_id, key, data):
-        user_date = self.personal_data.get(user_id, {})
-        date_on_key = user_date[key] = data
-        self.personal_data[user_id] = user_date
-
-    def get_prompt_from_storage(self, prompt_id, is_yaml=False):
-        prompt_path = os.path.join(self.storage_prompt_path, prompt_id)
-        with open(prompt_path, "r", encoding="utf-8") as file:
-            if is_yaml:
-                result = yaml.load(file, Loader=yaml.FullLoader)
-            else:
-                result = file.read()
-        return result
 
     def _init_smb_assist(self):
 
@@ -150,60 +147,37 @@ class Bot_LLM:
             callbacks=[GuardHandler()]
         )
 
-    def set_personalization(self, thread_id, user_tg_id):
-        config = {"configurable": {"thread_id": thread_id}}
-        current_state = self.agent_executor.get_state(config)
-        if (
-            not current_state.values.get("messages")
-            or len(current_state.values["messages"]) == 0
-        ):
-            return "История пуста, пока нечего персонализировать"
-        messages = current_state.values["messages"]
-        text_current_personalization = get_personalization(user_tg_id)
-        if text_current_personalization is None:
-            text_current_personalization = "Текущей персонализации пока нет"
-        # Собираем текст всех сообщений (при условии что сообщение имеет атрибут content)
-        # conversation_text = "\n".join(
-        #     [msg.content for msg in messages if hasattr(msg, "content") and msg.content]
-        # )
-        summary_prompt = self.get_prompt_from_storage("personalization_create.txt")
-        summary_prompt = summary_prompt.format(
-            text_current_personalization=text_current_personalization,
-            # conversation_text=conversation_text
-        )
-        try:
-            summary = self.model.invoke(
-                messages + [HumanMessage(content=summary_prompt)]
-            ).content
-        except Exception as e:
-            if self.logger:
-                self.logger.error(
-                    f"[summarize_and_update] Ошибка при генерации резюме: {e}"
-                )
-            return "Не удалось сгенерировать резюме."
-        if summary:
-            set_personalization(summary, user_tg_id)
-            delete_messages = [RemoveMessage(id=m.id) for m in messages[:-1]]
-            self.agent_executor.update_state(
-                config=config, values={"messages": delete_messages}
-            )
-        return summary
-
     def steam(self, message_tg, user_tg_id, thread_id=None, is_debug=False):
         # config = {"configurable": {"thread_id": thread_id, "user_id": user_tg_id}}
         config = {"configurable": {"thread_id": user_tg_id}}
         message = message_tg.text
         print(f"{datetime.now()} query: {message}")
         current_state = self.agent_executor.get_state(config)
-        if (
-            not current_state.values.get("messages")
-            or len(current_state.values["messages"]) == 0
-        ):
+        messages = current_state.values.get("messages", [])
+        print(len(messages))
+
+        if len(messages) > 20:
+            # print("Суммаризация")
+            # summary_prompt = (
+            #     "Суммаризируй приведённые выше сообщения чата в одно краткое сообщение."
+            #     "Включи как можно больше конкретных деталей."
+            # )
+            # summary_message = self.model.invoke(
+            #     messages + [HumanMessage(content=summary_prompt)]
+            # )
+            # content = "Сокращенная история сообщений:\n\n" + summary_message.content
+            # new_messages = [SystemMessage(content=content)]
+            # clear_memory(self.agent_executor.checkpointer, user_tg_id)
+            # self.agent_executor.update_state(config, {"messages": new_messages})
+            # messages = new_messages
+            pass
+
+        if not messages or len(messages) == 0:
             input_messages = {
                 "messages": [HumanMessage(message)],
             }
         else:
-            last_message = current_state.values["messages"][-1]
+            last_message = messages[-1]
             if (
                 isinstance(last_message, AIMessage)
                 and getattr(last_message, "tool_calls", None)
@@ -288,14 +262,6 @@ class Bot_LLM:
                     result.append({"type": "file", "content": last_message.content})
                 last_index += 1
         return result
-
-    def get_query_for_user(self, aimessage):
-        tool_calls = aimessage.tool_calls
-        list_queryes = []
-        for tool_call in tool_calls:
-            if tool_call["name"] == "ask_human":
-                list_queryes.append(tool_call["args"]["query"])
-        return list_queryes
 
     @retry(stop=stop_after_attempt(3), wait=wait_fixed(3))
     def send_message(self, chat_id, text, id_topic=None, reply_markup=None):
