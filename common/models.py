@@ -286,10 +286,10 @@ class TgUser(Base):
     username = Column(String(255))
 
 
-class TgChat(Base):
-    __tablename__ = "tg_chats"
+# class TgChat(Base):
+#     __tablename__ = "tg_chats"
 
-    tg_id = Column(BigInteger, primary_key=True)
-    title = Column(String(255), nullable=True)
-    username = Column(String(255), nullable=True)
-    type = Column(String(255), nullable=True)
+#     tg_id = Column(BigInteger, primary_key=True)
+#     title = Column(String(255), nullable=True)
+#     username = Column(String(255), nullable=True)
+#     type = Column(String(255), nullable=True)

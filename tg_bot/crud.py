@@ -19,7 +19,7 @@ from common.database import get_db
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(3))
 def register_chat_and_user(message: Message):
     user = message.from_user
-    chat = message.chat
+    # chat = message.chat
     flag = False
 
     with next(get_db()) as session:
@@ -35,17 +35,17 @@ def register_chat_and_user(message: Message):
             session.add(tg_user)
             flag = True
 
-        tg_chat = session.get(TgChat, chat.id)
+        # tg_chat = session.get(TgChat, chat.id)
 
-        if not tg_chat:
-            tg_chat = TgChat(
-                tg_id=chat.id,
-                title=chat.title,
-                username=chat.username,
-                type=chat.type,
-            )
-            session.add(tg_chat)
-            flag = True
+        # if not tg_chat:
+        #     tg_chat = TgChat(
+        #         tg_id=chat.id,
+        #         title=chat.title,
+        #         username=chat.username,
+        #         type=chat.type,
+        #     )
+        #     session.add(tg_chat)
+        #     flag = True
 
         if flag:
             session.commit()
