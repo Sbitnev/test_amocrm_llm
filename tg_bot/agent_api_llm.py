@@ -48,7 +48,8 @@ import requests
 import re
 from urllib.parse import unquote
 from tg_bot.settings import ROOT_DIR
-from tg_bot.logging_conf import logger
+
+# from tg_bot.logging_conf import logger
 
 # from agent_dev.tools_desc import Osv_FinalSchema
 from common.database import engine
@@ -63,41 +64,14 @@ os.makedirs(files_dir, exist_ok=True)
 log_dir = "logs"
 os.makedirs(log_dir, exist_ok=True)
 logger = logging.getLogger("langsmith")
-logger.setLevel(logging.DEBUG)
+# logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 logger.addHandler(logging.FileHandler(os.path.join(log_dir, "langsmith.log")))
 logger.addHandler(logging.StreamHandler())
 
 BASEDIR = Path(__file__).parent.parent
 CA_CERT_PATH = BASEDIR / "ca.crt"
 CA_CERT_PATH = str(CA_CERT_PATH.resolve())
-
-
-def clear_memory(
-    memory: MemorySaver, thread_id: str, new_data: dict | None = None
-) -> None:
-    """Clear the memory for a given thread_id."""
-    try:
-        # If it's an InMemorySaver (which MemorySaver is an alias for),
-        # we can directly clear the storage and writes
-        if hasattr(memory, "storage") and hasattr(memory, "writes"):
-            # Clear all checkpoints for this thread_id (all namespaces)
-            ms = memory.storage.pop(thread_id, None)
-            print(ms)
-
-            # Clear all writes for this thread_id (for all namespaces)
-            keys_to_remove = [
-                key for key in memory.writes.keys() if key[0] == thread_id
-            ]
-            for key in keys_to_remove:
-                print(key)
-                print(memory.writes.pop(key, None))
-
-            print(f"Memory cleared for thread_id: {thread_id}")
-
-            return
-
-    except Exception as e:
-        print(f"Error clearing InMemorySaver storage for thread_id {thread_id}: {e}")
 
 
 class GuardHandler(BaseCallbackHandler):
@@ -152,13 +126,13 @@ class Bot_LLM:
         # config = {"configurable": {"thread_id": thread_id, "user_id": user_tg_id}}
         config = {"configurable": {"thread_id": user_tg_id}}
         message = message_tg.text
-        print(f"{datetime.now()} query: {message}")
+        logger.info(f"Обработка сообщения от пользователя user_tg_id: {message}")
         current_state = self.agent_executor.get_state(config)
         messages = current_state.values.get("messages", [])
-        print(len(messages))
+        logger.info(f"Поток: {user_tg_id}, сообщений: {len(messages)}")
 
-        if len(messages) > 1:
-            print("Суммаризация")
+        if len(messages) > 20:
+            logger.info(f"Суммаризация для потока {user_tg_id}")
             summary_prompt = (
                 "Суммаризируй приведённые выше сообщения чата в одно краткое сообщение."
                 "Включи как можно больше конкретных деталей."
@@ -168,8 +142,11 @@ class Bot_LLM:
             )
             content = "Сокращенная история сообщений:\n\n" + summary_message.content
             new_messages = [SystemMessage(content=content)]
-            self.agent_executor.checkpointer.delete_thread(thread_id=user_tg_id)
-            # self.agent_executor.update_state(config, {"messages": new_messages})
+            delete_messages = [RemoveMessage(id=m.id) for m in messages]
+            # self.agent_executor.checkpointer.delete_thread(thread_id=user_tg_id)
+            self.agent_executor.update_state(
+                config, {"messages": new_messages + delete_messages}
+            )
             messages = new_messages
 
         if not messages or len(messages) == 0:
@@ -214,13 +191,13 @@ class Bot_LLM:
         for event in events:
             if event.get("tools"):
                 for message in event["tools"]["messages"]:
-                    message.pretty_print()
+                    # message.pretty_print()
                     if message.name == "get_file_from_url":
                         result.append({"type": "file", "content": message.content})
                     continue
             if event.get("agent"):
                 for message in event["agent"]["messages"]:
-                    message.pretty_print()
+                    # message.pretty_print()
                     # if isinstance(last_message, (HumanMessage, ToolMessage)):
                     #     continue
                     if not message.content:
@@ -244,7 +221,7 @@ class Bot_LLM:
             #     last_index += 1
             for i in range(last_index, len(event["messages"])):
                 last_message = event["messages"][i]
-                last_message.pretty_print()
+                # last_message.pretty_print()
                 self.send_message(
                     message_tg.chat.id,
                     last_message.pretty_repr(),
