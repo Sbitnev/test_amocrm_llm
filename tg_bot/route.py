@@ -24,8 +24,12 @@ API_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 bot = TeleBot(API_TOKEN)
 
-llm_bot = Bot_LLM(bot=bot, logger=logger)
+llm_bot = Bot_LLM(
+    bot=bot,
+    logger=logger,
+)
 llm_bot.run()
+
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(3))
 def send_message(chat_id, text, id_topic=None, reply_markup=None):
@@ -54,9 +58,11 @@ def send_attache(chat_id, file, id_topic=None):
                 chat_id=chat_id, document=fileraw, message_thread_id=id_topic
             )
 
+
 @bot.message_handler(commands=["start"])
 def send_welcome(message):
     bot.reply_to(message, "Добро пожаловать обратно! Чем я могу вам помочь?")
+
 
 @bot.message_handler(
     func=lambda message: message.text
