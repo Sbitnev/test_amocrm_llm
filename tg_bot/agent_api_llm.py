@@ -165,10 +165,12 @@ class Bot_LLM:
             delete_messages += [SystemMessage("История была полностью очищена")]
         self.agent_executor.update_state(config, {"messages": delete_messages})
 
-        if is_debug:
-            result = self.process_call_in_debug_mode(message_tg, input_messages, config)
-        else:
-            result = self.process_call_in_standart_mode(input_messages, config)
+        result = self.process_call_in_debug_mode(
+            message_tg,
+            input_messages,
+            config,
+            is_debug,
+        )
 
         current_state = self.agent_executor.get_state(config)
         messages = current_state.values.get("messages", [])
@@ -205,33 +207,35 @@ class Bot_LLM:
         result.append({"type": "text", "content": response["output"]})
         return result
 
-    def process_call_in_standart_mode(self, input_messages, config):
-        events = self.agent_executor.stream(
-            input_messages, stream_mode="updates", config=config
-        )
-        result = []
-        last_index = None
-        for event in events:
-            if event.get("tools"):
-                for message in event["tools"]["messages"]:
-                    # message.pretty_print()
-                    if message.name == "get_file_from_url":
-                        result.append({"type": "file", "content": message.content})
-                    continue
-            if event.get("agent"):
-                for message in event["agent"]["messages"]:
-                    # message.pretty_print()
-                    # if isinstance(last_message, (HumanMessage, ToolMessage)):
-                    #     continue
-                    if not message.content:
-                        continue
-                    result.append({"type": "text", "content": message.pretty_repr()})
-            if event.get("__interrupt__"):
-                for interrupt in event["__interrupt__"]:
-                    result.append({"type": "text", "content": interrupt.value})
-        return result
+    # def process_call_in_standart_mode(self, input_messages, config):
+    #     events = self.agent_executor.stream(
+    #         input_messages, stream_mode="updates", config=config
+    #     )
+    #     result = []
+    #     last_index = None
+    #     for event in events:
+    #         if event.get("tools"):
+    #             for message in event["tools"]["messages"]:
+    #                 # message.pretty_print()
+    #                 if message.name == "get_file_from_url":
+    #                     result.append({"type": "file", "content": message.content})
+    #                 continue
+    #         if event.get("agent"):
+    #             for message in event["agent"]["messages"]:
+    #                 # message.pretty_print()
+    #                 # if isinstance(last_message, (HumanMessage, ToolMessage)):
+    #                 #     continue
+    #                 if not message.content:
+    #                     continue
+    #                 result.append({"type": "text", "content": message.pretty_repr()})
+    #         if event.get("__interrupt__"):
+    #             for interrupt in event["__interrupt__"]:
+    #                 result.append({"type": "text", "content": interrupt.value})
+    #     return result
 
-    def process_call_in_debug_mode(self, message_tg, input_messages, config):
+    def process_call_in_debug_mode(
+        self, message_tg, input_messages, config, is_debug=False
+    ):
         events = self.agent_executor.stream(
             input_messages, stream_mode="values", config=config
         )
@@ -245,22 +249,26 @@ class Bot_LLM:
             for i in range(last_index, len(event["messages"])):
                 last_message = event["messages"][i]
                 # last_message.pretty_print()
-                self.send_message(
-                    message_tg.chat.id,
-                    last_message.pretty_repr(),
-                )
-                result.append({"type": "text", "content": last_message.pretty_repr()})
-                if (
-                    isinstance(last_message, ToolMessage)
-                    and last_message.name == "get_file_from_url"
-                    and last_message.content
-                ):
-                    self.send_attache(
+                if is_debug:
+                    self.send_message(
                         message_tg.chat.id,
-                        last_message.content,
+                        last_message.pretty_repr(),
                     )
-                    result.append({"type": "file", "content": last_message.content})
+                    result.append(
+                        {"type": "text", "content": last_message.pretty_repr()}
+                    )
+                    if (
+                        isinstance(last_message, ToolMessage)
+                        and last_message.name == "get_file_from_url"
+                        and last_message.content
+                    ):
+                        self.send_attache(
+                            message_tg.chat.id,
+                            last_message.content,
+                        )
+                        result.append({"type": "file", "content": last_message.content})
                 last_index += 1
+        self.send_message(message_tg.chat.id, last_message.text())
         return result
 
     @retry(stop=stop_after_attempt(3), wait=wait_fixed(3))
