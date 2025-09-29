@@ -131,24 +131,6 @@ class Bot_LLM:
         messages = current_state.values.get("messages", [])
         logger.info(f"Поток: {user_tg_id}, сообщений: {len(messages)}")
 
-        if len(messages) > 20:
-            logger.info(f"Суммаризация для потока {user_tg_id}")
-            summary_prompt = (
-                "Суммаризируй приведённые выше сообщения чата в одно краткое сообщение."
-                "Включи как можно больше конкретных деталей."
-            )
-            summary_message = self.model.invoke(
-                messages + [HumanMessage(content=summary_prompt)]
-            )
-            content = "Сокращенная история сообщений:\n\n" + summary_message.content
-            new_messages = [SystemMessage(content=content)]
-            delete_messages = [RemoveMessage(id=m.id) for m in messages]
-            # self.agent_executor.checkpointer.delete_thread(thread_id=user_tg_id)
-            self.agent_executor.update_state(
-                config, {"messages": new_messages + delete_messages}
-            )
-            messages = new_messages
-
         if not messages or len(messages) == 0:
             input_messages = {
                 "messages": [HumanMessage(message)],
@@ -169,6 +151,29 @@ class Bot_LLM:
             result = self.process_call_in_debug_mode(message_tg, input_messages, config)
         else:
             result = self.process_call_in_standart_mode(input_messages, config)
+
+        current_state = self.agent_executor.get_state(config)
+        messages = current_state.values.get("messages", [])
+        if len(messages) > 30:
+            logger.info(
+                f"Суммаризация для потока {user_tg_id}, сообщений: {len(messages)}"
+            )
+            summary_prompt = (
+                "Суммаризируй приведённые выше сообщения чата в одно краткое сообщение."
+                "Включи как можно больше конкретных деталей."
+                "Если последнее сообщение от ИИ содержит вопрос, обязательно сохрани его."
+            )
+            summary_message = self.model.invoke(
+                messages + [HumanMessage(content=summary_prompt)]
+            )
+            content = "Сокращенная история сообщений:\n\n" + summary_message.content
+            new_messages = [SystemMessage(content=content)]
+            delete_messages = [RemoveMessage(id=m.id) for m in messages]
+            # self.agent_executor.checkpointer.delete_thread(thread_id=user_tg_id)
+            self.agent_executor.update_state(
+                config, {"messages": new_messages + delete_messages}
+            )
+            # messages = new_messages
 
         return result
 
