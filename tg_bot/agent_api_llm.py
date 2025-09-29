@@ -30,9 +30,9 @@ from langchain_core.messages import (
 )
 from langchain_openai import ChatOpenAI
 from langchain_core.tools import tool
+from langgraph.graph.state import CompiledStateGraph
 from telebot import util
 from tenacity import retry, stop_after_attempt, wait_fixed
-
 import yaml
 
 from langchain_core.callbacks import BaseCallbackHandler
@@ -124,6 +124,7 @@ class Bot_LLM:
             base_url=os.environ.get("BASE_URL_MINI_LLM"),
             http_client=httpx.Client(verify=CA_CERT_PATH),
         )
+        self.agent_executor: CompiledStateGraph = CompiledStateGraph
 
     def run(self):
         self._init_smb_assist()
@@ -137,7 +138,7 @@ class Bot_LLM:
 
         db = SQLDatabase(engine=engine)
         toolkit = SQLDatabaseToolkit(db=db, llm=self.model)
-        self.agent_executor = create_react_agent(
+        self.agent_executor: CompiledStateGraph = create_react_agent(
             self.model,
             toolkit.get_tools(),
             prompt=system_prompt,
@@ -156,21 +157,20 @@ class Bot_LLM:
         messages = current_state.values.get("messages", [])
         print(len(messages))
 
-        if len(messages) > 20:
-            # print("Суммаризация")
-            # summary_prompt = (
-            #     "Суммаризируй приведённые выше сообщения чата в одно краткое сообщение."
-            #     "Включи как можно больше конкретных деталей."
-            # )
-            # summary_message = self.model.invoke(
-            #     messages + [HumanMessage(content=summary_prompt)]
-            # )
-            # content = "Сокращенная история сообщений:\n\n" + summary_message.content
-            # new_messages = [SystemMessage(content=content)]
-            # clear_memory(self.agent_executor.checkpointer, user_tg_id)
+        if len(messages) > 1:
+            print("Суммаризация")
+            summary_prompt = (
+                "Суммаризируй приведённые выше сообщения чата в одно краткое сообщение."
+                "Включи как можно больше конкретных деталей."
+            )
+            summary_message = self.model.invoke(
+                messages + [HumanMessage(content=summary_prompt)]
+            )
+            content = "Сокращенная история сообщений:\n\n" + summary_message.content
+            new_messages = [SystemMessage(content=content)]
+            self.agent_executor.checkpointer.delete_thread(thread_id=user_tg_id)
             # self.agent_executor.update_state(config, {"messages": new_messages})
-            # messages = new_messages
-            pass
+            messages = new_messages
 
         if not messages or len(messages) == 0:
             input_messages = {
