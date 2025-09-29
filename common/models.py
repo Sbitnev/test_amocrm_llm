@@ -228,6 +228,7 @@ class Status(Base):
     def __repr__(self):
         return f"<Status(id={self.id}, name={self.name})>"
 
+
 class LeadStatusChange(Base):
     __tablename__ = "lead_status_changes"
 
@@ -240,7 +241,6 @@ class LeadStatusChange(Base):
     old_pipeline_id = Column(Integer)
     new_status_id = Column(Integer)
     new_pipeline_id = Column(Integer)
-
 
     LABEL = "events"
 
@@ -258,9 +258,9 @@ class LeadStatusChange(Base):
         self.new_status_id = data["value_after"][0]["lead_status"]["id"]
         self.new_pipeline_id = data["value_after"][0]["lead_status"]["pipeline_id"]
 
-
     def need_update(self, data, if_force_rewrite=False):
         return False
+
 
 class DataSyncState(Base):
     __tablename__ = "data_sync_state"
@@ -274,3 +274,21 @@ class DataSyncState(Base):
 
     def __repr__(self):
         return f"<DataSyncState(id={self.id}, last_updated={self.last_updated}, last_updated_timestamp={self.last_updated_timestamp}, execution_duration_seconds={self.execution_duration_seconds}, update_log={self.update_log})>"
+
+
+class TgUser(Base):
+    __tablename__ = "tg_users"
+
+    tg_id = Column(Integer, primary_key=True)
+    first_name = Column(String(255), nullable=True)
+    last_name = Column(String(255), nullable=True)
+    username = Column(String(255))
+
+
+class TgChat(Base):
+    __tablename__ = "tg_chats"
+
+    tg_id = Column(Integer, primary_key=True)
+    title = Column(String(255), nullable=True)
+    username = Column(String(255), nullable=True)
+    type = Column(String(255), nullable=True)
