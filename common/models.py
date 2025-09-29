@@ -10,6 +10,7 @@ from sqlalchemy import (
     JSON,
     Float,
     ForeignKeyConstraint,
+    BigInteger,
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -279,7 +280,7 @@ class DataSyncState(Base):
 class TgUser(Base):
     __tablename__ = "tg_users"
 
-    tg_id = Column(Integer, primary_key=True)
+    tg_id = Column(BigInteger, primary_key=True)
     first_name = Column(String(255), nullable=True)
     last_name = Column(String(255), nullable=True)
     username = Column(String(255))
@@ -288,7 +289,7 @@ class TgUser(Base):
 class TgChat(Base):
     __tablename__ = "tg_chats"
 
-    tg_id = Column(Integer, primary_key=True)
+    tg_id = Column(BigInteger, primary_key=True)
     title = Column(String(255), nullable=True)
     username = Column(String(255), nullable=True)
     type = Column(String(255), nullable=True)
