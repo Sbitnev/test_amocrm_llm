@@ -49,7 +49,7 @@ import re
 from urllib.parse import unquote
 from tg_bot.settings import ROOT_DIR
 
-# from tg_bot.logging_conf import logger
+from tg_bot.logging_conf import logger
 
 # from agent_dev.tools_desc import Osv_FinalSchema
 from common.database import engine
@@ -63,11 +63,11 @@ files_dir = "files"
 os.makedirs(files_dir, exist_ok=True)
 log_dir = "logs"
 os.makedirs(log_dir, exist_ok=True)
-logger = logging.getLogger("langsmith")
+# logger = logging.getLogger("langsmith")
 # logger.setLevel(logging.DEBUG)
-logger.setLevel(logging.INFO)
-logger.addHandler(logging.FileHandler(os.path.join(log_dir, "langsmith.log")))
-logger.addHandler(logging.StreamHandler())
+# logger.setLevel(logging.INFO)
+# logger.addHandler(logging.FileHandler(os.path.join(log_dir, "langsmith.log")))
+# logger.addHandler(logging.StreamHandler())
 
 BASEDIR = Path(__file__).parent.parent
 CA_CERT_PATH = BASEDIR / "ca.crt"
