@@ -14,6 +14,9 @@ import dotenv
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 from telebot import TeleBot, util
+from telebot.types import Message
+
+from tg_bot.crud import register_chat_and_user
 
 from tg_bot.agent_api_llm import Bot_LLM
 from tg_bot.logging_conf import logger
@@ -60,7 +63,8 @@ def send_attache(chat_id, file, id_topic=None):
 
 
 @bot.message_handler(commands=["start"])
-def send_welcome(message):
+def send_welcome(message: Message):
+    register_chat_and_user(message)
     bot.reply_to(message, "Добро пожаловать обратно! Чем я могу вам помочь?")
 
 
@@ -68,7 +72,8 @@ def send_welcome(message):
     func=lambda message: message.text
     not in ["Сбросить диалог", "Выключить дебаг", "Включить дебаг"]
 )
-def handle_message(message):
+def handle_message(message: Message):
+    register_chat_and_user(message)
     send_message(message.chat.id, "Обрабатываю запрос...")
     list_messages = llm_bot.steam(
         message_tg=message, user_tg_id=message.from_user.id, is_debug=True
