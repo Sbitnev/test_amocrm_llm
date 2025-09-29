@@ -12,7 +12,7 @@ sys.path.append(parent_dir)
 
 from tenacity import retry, stop_after_attempt, wait_fixed
 from telebot.types import Message
-from common.models import TgChat, TgUser
+from common.models import TgUser
 from common.database import get_db
 
 
