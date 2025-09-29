@@ -12,21 +12,18 @@ sys.path.append(parent_dir)
 
 import logging
 import os
-import getpass
 import tempfile
 import traceback
-from datetime import datetime
 from pathlib import Path
 
 import httpx
-import requests
-import json
 from langchain_core.messages import (
     HumanMessage,
     AIMessage,
     ToolMessage,
     SystemMessage,
     RemoveMessage,
+    trim_messages,
 )
 from langchain_openai import ChatOpenAI
 from langchain_core.tools import tool
@@ -44,10 +41,12 @@ from langchain_community.agent_toolkits.sql.toolkit import SQLDatabaseToolkit
 from langgraph.types import Command, interrupt
 from langgraph.checkpoint.memory import MemorySaver
 from langchain import hub
-import requests
-import re
 from urllib.parse import unquote
 from tg_bot.settings import ROOT_DIR
+
+from langchain_core.messages.utils import count_tokens_approximately
+from langgraph.prebuilt.chat_agent_executor import AgentState
+from langgraph.graph.message import REMOVE_ALL_MESSAGES
 
 from tg_bot.logging_conf import logger
 
@@ -99,6 +98,12 @@ class Bot_LLM:
             http_client=httpx.Client(verify=CA_CERT_PATH),
         )
         self.agent_executor: CompiledStateGraph = CompiledStateGraph
+        self.trimmer = trim_messages(
+            strategy="last",
+            max_tokens=20,
+            token_counter=len,
+            start_on="human",
+        )
 
     def run(self):
         self._init_smb_assist()
@@ -112,6 +117,7 @@ class Bot_LLM:
 
         db = SQLDatabase(engine=engine)
         toolkit = SQLDatabaseToolkit(db=db, llm=self.model)
+
         self.agent_executor: CompiledStateGraph = create_react_agent(
             self.model,
             toolkit.get_tools(),
@@ -130,6 +136,7 @@ class Bot_LLM:
         current_state = self.agent_executor.get_state(config)
         messages = current_state.values.get("messages", [])
         logger.info(f"Поток: {user_tg_id}, сообщений: {len(messages)}")
+        logger.info(f"Токенов: {count_tokens_approximately(messages)}")
 
         if not messages or len(messages) == 0:
             input_messages = {
@@ -147,6 +154,17 @@ class Bot_LLM:
                 input_messages = {
                     "messages": [HumanMessage(message)],
                 }
+
+        trimmed_messages = self.trimmer.invoke(messages)
+        trimmed_messages_ids = set(m.id for m in trimmed_messages)
+        delete_messages = [
+            RemoveMessage(id=m.id) for m in messages if m.id not in trimmed_messages_ids
+        ]
+        # print(delete_messages)
+        if len(delete_messages) == len(messages):
+            delete_messages += [SystemMessage("История была полностью очищена")]
+        self.agent_executor.update_state(config, {"messages": delete_messages})
+
         if is_debug:
             result = self.process_call_in_debug_mode(message_tg, input_messages, config)
         else:
@@ -154,26 +172,26 @@ class Bot_LLM:
 
         current_state = self.agent_executor.get_state(config)
         messages = current_state.values.get("messages", [])
-        if len(messages) > 30:
-            logger.info(
-                f"Суммаризация для потока {user_tg_id}, сообщений: {len(messages)}"
-            )
-            summary_prompt = (
-                "Суммаризируй приведённые выше сообщения чата в одно краткое сообщение."
-                "Включи как можно больше конкретных деталей."
-                "Если последнее сообщение от ИИ содержит вопрос, обязательно сохрани его."
-            )
-            summary_message = self.model.invoke(
-                messages + [HumanMessage(content=summary_prompt)]
-            )
-            content = "Сокращенная история сообщений:\n\n" + summary_message.content
-            new_messages = [SystemMessage(content=content)]
-            delete_messages = [RemoveMessage(id=m.id) for m in messages]
-            # self.agent_executor.checkpointer.delete_thread(thread_id=user_tg_id)
-            self.agent_executor.update_state(
-                config, {"messages": new_messages + delete_messages}
-            )
-            # messages = new_messages
+        # if len(messages) > 30:
+        #     logger.info(
+        #         f"Суммаризация для потока {user_tg_id}, сообщений: {len(messages)}"
+        #     )
+        #     summary_prompt = (
+        #         "Суммаризируй приведённые выше сообщения чата в одно краткое сообщение."
+        #         "Включи как можно больше конкретных деталей."
+        #         "Если последнее сообщение от ИИ содержит вопрос, обязательно сохрани его."
+        #     )
+        #     summary_message = self.model.invoke(
+        #         messages + [HumanMessage(content=summary_prompt)]
+        #     )
+        #     content = "Сокращенная история сообщений:\n\n" + summary_message.content
+        #     new_messages = [SystemMessage(content=content)]
+        #     delete_messages = [RemoveMessage(id=m.id) for m in messages]
+        #     # self.agent_executor.checkpointer.delete_thread(thread_id=user_tg_id)
+        #     self.agent_executor.update_state(
+        #         config, {"messages": new_messages + delete_messages}
+        #     )
+        #     # messages = new_messages
 
         return result
 
