@@ -11,6 +11,7 @@ from sqlalchemy import (
     Float,
     ForeignKeyConstraint,
     BigInteger,
+    text,
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -284,6 +285,7 @@ class TgUser(Base):
     first_name = Column(String(255), nullable=True)
     last_name = Column(String(255), nullable=True)
     username = Column(String(255))
+    newsletter = Column(Boolean, server_default=text("false"))
 
 
 # class TgChat(Base):
