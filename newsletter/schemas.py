@@ -5,8 +5,8 @@ from pydantic import BaseModel, Field
 
 
 class Seller(BaseModel):
-    name: str
-    total_price: float
+    name: str = "Неизвестен"
+    total_price: float = 0
 
 
 class Digest(BaseModel):
@@ -19,8 +19,8 @@ class Digest(BaseModel):
     avg_price: float
     conversion: float
 
-    # best_seller: Seller
-    # worst_seller: Seller
+    best_seller: Seller
+    worst_seller: Seller
 
     alerts: list[
         Literal[
