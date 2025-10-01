@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import statistics
 
 from sqlalchemy import func, text, select
@@ -88,7 +88,7 @@ class Metrics:
 
             digest = Digest(
                 start_dt=start_dt,
-                end_dt=end_dt,
+                end_dt=end_dt - timedelta(minutes=1),
                 created_leads=created_leads,
                 closed_leads=len(closed_leads),
                 total_price=total_price,
