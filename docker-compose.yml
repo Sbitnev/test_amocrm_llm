@@ -14,6 +14,7 @@ services:
       # - ./files:/app/files
       # - ./app_bot/instance:/app/app_bot/instance
     restart: unless-stopped
+
   sync_db_app:
     build:
       context: .
@@ -44,4 +45,16 @@ services:
       # - ./logs:/app/logs
       # - ./files:/app/files
       # - ./app_bot/instance:/app/app_bot/instance
+    restart: unless-stopped
+
+  newsletter:
+    build:
+      context: .
+      dockerfile: Dockerfile.newsletter
+    image: newsletter
+    container_name: newsletter
+    env_file:
+      - ./.env
+    volumes:
+      - .:/app
     restart: unless-stopped
