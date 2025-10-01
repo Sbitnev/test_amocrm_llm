@@ -2,6 +2,7 @@ import requests
 import json
 import os
 from typing import Optional, List, Union
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 import dotenv
 
@@ -16,6 +17,7 @@ class TelegramBot:
         self.token = token
         self.base_url = f"https://api.telegram.org/bot{token}"
 
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(3))
     def send_message(
         self,
         chat_id: Union[int, str],
@@ -68,21 +70,22 @@ class TelegramBot:
 • Общая сумма: <b>{digest.total_price:,.0f}₽</b>
 • Средний чек: <b>{digest.avg_price:,.0f}₽</b>
 • Конверсия: <b>{digest.conversion:.1%}</b>
-
-
         """
-            #             + """
-            # <u>Лучшие результаты:</u>
-            # 🥇 <b>{digest.best_seller.name}</b> — {digest.best_seller.total_price:,.0f}₽
-            # 📊 <b>{digest.worst_seller.name}</b> — {digest.worst_seller.total_price:,.0f}₽
-            #         """
+            + f"""
+<u>Ключевые метрики по команде:</u>
+🥇 Лидер продаж: <b>{digest.best_seller.name}</b> — {digest.best_seller.total_price:,.0f}₽
+📊 Самый низкий результат: <b>{digest.worst_seller.name}</b> — {digest.worst_seller.total_price:,.0f}₽
+Общая активность команды: <b>{digest.created_leads}</b> новых сделок
+            """
         )
 
         # Добавляем алерты если есть
+        message += "\n<u>⚠️ Предупреждения:</u>\n"
         if digest.alerts:
-            message += "\n\n<u>⚠️ Внимание:</u>\n"
             for alert in digest.alerts:
                 message += f"• {alert}\n"
+        else:
+            message += "Падения по метрикам за период нет"
 
         return message
 
