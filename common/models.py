@@ -247,7 +247,7 @@ class LeadStatusChange(Base):
     LABEL = "events"
 
     def __repr__(self):
-        return f"<Contact(id={self.id}, name={self.name})>"
+        return f"<Contact(id={self.id}, new_status_id={self.new_status_id})>"
 
     def fill(self, data):
         self.id = data["id"]
