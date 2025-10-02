@@ -60,16 +60,18 @@ class Metrics:
 
     def get_raw_digest(self, start_dt: datetime, end_dt: datetime) -> Digest:
         with next(get_db()) as session:
+            utc_start_dt = start_dt - timedelta(hours=3)
+            utc_end_dt = end_dt - timedelta(hours=3)
             created_leads: int = (
                 session.query(func.count(Lead.id))
-                .filter(start_dt <= Lead.created_at, Lead.created_at < end_dt)
+                .filter(utc_start_dt <= Lead.created_at, Lead.created_at < utc_end_dt)
                 .scalar()
             )
             closed_lead_ids = (
                 session.query(LeadStatusChange.lead_id)
                 .filter(
-                    start_dt <= LeadStatusChange.created_at,
-                    LeadStatusChange.created_at < end_dt,
+                    utc_start_dt <= LeadStatusChange.created_at,
+                    LeadStatusChange.created_at < utc_end_dt,
                     LeadStatusChange.new_status_id == 142,
                 )
                 .all()
