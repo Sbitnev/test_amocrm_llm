@@ -72,7 +72,7 @@ class Metrics:
                 .filter(
                     utc_start_dt <= LeadStatusChange.created_at,
                     LeadStatusChange.created_at < utc_end_dt,
-                    LeadStatusChange.new_status_id == 142,
+                    LeadStatusChange.new_status_id.in_([73457438, 142]),
                 )
                 .all()
             )
@@ -83,7 +83,7 @@ class Metrics:
             sells = [lead.price for lead in closed_leads]
             total_price = sum(sells) if sells else 0
             avg_price = statistics.mean(sells) if sells else 0
-            conversion = created_leads / len(closed_leads) if len(closed_leads) else 0
+            conversion = len(closed_leads) / created_leads if created_leads else 0
             best_seller, worst_seller = self._get_sellers_performance(
                 session, closed_lead_ids
             )
