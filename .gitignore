@@ -209,3 +209,4 @@ __marimo__/
 
 bot_database.sqlite
 data/
+test.py
