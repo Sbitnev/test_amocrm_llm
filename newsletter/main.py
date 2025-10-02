@@ -9,7 +9,7 @@ from pytz import timezone
 
 from tg_bot_s import bot
 from metrics import metrics
-import dotenv
+from logging_conf import setup_logs
 
 dotenv.load_dotenv()
 
@@ -59,7 +59,8 @@ def main():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    # logging.basicConfig(level=logging.INFO)
+    setup_logs("newsletter.log")
     logger = logging.getLogger(__name__)
 
     logger.info("Запуск приложения")
