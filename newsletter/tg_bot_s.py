@@ -74,7 +74,7 @@ class TelegramBot:
             + f"""
 <u>Ключевые метрики по команде:</u>
 🥇 Лидер продаж: <b>{digest.best_seller.name}</b> — {digest.best_seller.total_price:,.0f}₽
-📊 Самый низкий результат: <b>{digest.worst_seller.name}</b> — {digest.worst_seller.total_price:,.0f}₽
+↘️ Самый низкий результат: <b>{digest.worst_seller.name}</b> — {digest.worst_seller.total_price:,.0f}₽
 Общая активность команды: <b>{digest.created_leads}</b> новых сделок
             """
         )
