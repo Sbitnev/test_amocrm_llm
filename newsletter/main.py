@@ -15,9 +15,13 @@ dotenv.load_dotenv()
 
 dev_chat_id = os.getenv("DEV_CHAT_ID")
 
+setup_logs("newsletter.log")
+logger = logging.getLogger(__name__)
 
-def job():
-    today = dt.datetime.now()
+
+def job(today: dt.datetime | None = None):
+    if not today:
+        today = dt.datetime.now()
 
     if today.weekday() == 0:
         start_dt = today.replace(hour=0, minute=0, second=0) - dt.timedelta(days=7)
@@ -32,11 +36,19 @@ def job():
         day_diff = 1
 
     start_dt = today.replace(hour=0, minute=0, second=0) - dt.timedelta(days=day_diff)
-    end_dt = today.replace(hour=0, minute=0, second=0)
+    end_dt = today.replace(hour=0, minute=0, second=0) - dt.timedelta(
+        days=(day_diff + 1)
+    )
     digest = metrics.get_digest(start_dt, end_dt)
 
     for user_id in metrics.get_nl_tg_user_ids() + [dev_chat_id]:
-        bot.send_digest_message(user_id, digest)
+        try:
+            bot.send_digest_message(user_id, digest)
+        except Exception as e:
+            logger.error(
+                f"При отправке дайджеста в чат {user_id} произошла ошибка {str(e)}",
+                exc_info=True,
+            )
 
 
 def main():
@@ -60,8 +72,8 @@ def main():
 
 if __name__ == "__main__":
     # logging.basicConfig(level=logging.INFO)
-    setup_logs("newsletter.log")
-    logger = logging.getLogger(__name__)
+    # setup_logs("newsletter.log")
+    # logger = logging.getLogger(__name__)
 
     logger.info("Запуск приложения")
     try:
