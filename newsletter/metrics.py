@@ -64,7 +64,11 @@ class Metrics:
             utc_end_dt = end_dt - timedelta(hours=3)
             created_leads: int = (
                 session.query(func.count(Lead.id))
-                .filter(utc_start_dt <= Lead.created_at, Lead.created_at < utc_end_dt)
+                .filter(
+                    utc_start_dt <= Lead.created_at, 
+                    Lead.created_at < utc_end_dt, 
+                    Lead.pipeline_id == 9135578,
+                )
                 .scalar()
             )
             closed_lead_ids = (
@@ -73,6 +77,7 @@ class Metrics:
                     utc_start_dt <= LeadStatusChange.created_at,
                     LeadStatusChange.created_at < utc_end_dt,
                     LeadStatusChange.new_status_id.in_([73457438, 142]),
+                    LeadStatusChange.new_pipeline_id == 9135578,
                 )
                 .all()
             )
