@@ -85,7 +85,11 @@ class GuardHandler(BaseCallbackHandler):
 
 class Bot_LLM:
     def __init__(
-        self, bot, model_id="gpt-4.1-mini", max_history_message_tokens=1000, logger=None
+        self,
+        bot,
+        model_id=os.getenv("MODEL_ID", "gpt-4.1-mini"),
+        max_history_message_tokens=1000,
+        logger=None,
     ):
         self.bot = bot
         self.model_id = model_id
